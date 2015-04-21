@@ -75,7 +75,7 @@ func handleGet(res http.ResponseWriter, req *http.Request) {
 			fileResponses = append(fileResponses, toFileInfoResponse(fi))
 		}
 
-		res.Header().Set("Content-Type", "application/json") // TODO allow others
+		res.Header().Set("Content-Type", "application/json")
 		fileResponsesJson, err := json.Marshal(fileResponses)
 		if err != nil {
 			http.Error(res, "Error converting JSON: "+err.Error(), http.StatusInternalServerError)
