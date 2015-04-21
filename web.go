@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -39,23 +40,23 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	}
 	defer path.Close()
 
-	switch req.Method {
-	case "GET":
-		handleGet(res, req, path)
-	//		case "POST":
-	//			handlePost(res, req)
-	default:
-		http.Error(res, "Only GET and POST supported", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleGet(res http.ResponseWriter, req *http.Request, path *os.File) {
 	pathInfo, err := path.Stat()
 	if err != nil {
 		handleError(res, req, err, http.StatusInternalServerError, "Error reading path info")
 		return
 	}
 
+	switch req.Method {
+	case "GET":
+		handleGet(res, req, path, pathInfo)
+	case "POST":
+		handlePost(res, req, path, pathInfo)
+	default:
+		http.Error(res, "Only GET and POST supported", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
 	if pathInfo.Mode().IsDir() {
 		fileInfos, err := path.Readdir(0)
 		if err != nil {
@@ -79,9 +80,28 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File) {
 		io.Copy(res, path)
 	} else {
 		handleError(res, req,
-			fmt.Errorf("Invalid file type: "+string(pathInfo.Mode().String()[0])),
-			http.StatusBadRequest,
-			"Invalid file type")
+			fmt.Errorf("Invalid file type for GET. Only directories and regular files are supported."),
+			http.StatusBadRequest, "Invalid file type")
+	}
+}
+
+func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
+	if pathInfo.Mode().IsDir() {
+		resFlusherWriter := flushWriterWrapper{res.(flushWriter)}
+		cmd := exec.Command("sh")
+		cmd.Dir = path.Name()
+		cmd.Env = []string{}
+		cmd.Stdin = req.Body
+		cmd.Stdout = resFlusherWriter
+		cmd.Stderr = resFlusherWriter
+		if err := cmd.Run(); err != nil {
+			handleError(res, req, err, http.StatusInternalServerError, "Error running command")
+			return
+		}
+	} else {
+		handleError(res, req,
+			fmt.Errorf("Invalid file type for POST. Only directories are supported"),
+			http.StatusBadRequest, "Invalid file type")
 	}
 }
 
@@ -123,4 +143,19 @@ func handleError(res http.ResponseWriter, req *http.Request, err error, httpStat
 
 	res.Header().Set("Content-Type", "application/json")
 	http.Error(res, string(stdErrorJson), httpStatus)
+}
+
+type flushWriter interface {
+	Flush()
+	Write(buf []byte) (int, error)
+}
+
+type flushWriterWrapper struct {
+	fw flushWriter
+}
+
+func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
+	n, err = fww.fw.Write(p)
+	fww.fw.Flush()
+	return
 }
