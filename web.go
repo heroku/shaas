@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -50,23 +51,50 @@ func toFileInfoResponse(fi os.FileInfo) fileInfoResponse {
 	}
 }
 
+type stdError struct {
+	Message string `json:"message"`
+	Cause   error  `json:"cause"`
+}
+
+func handleError(res http.ResponseWriter, req *http.Request, err error, httpStatus int, message string) {
+	stdError := stdError{
+		Message: message,
+		Cause:   err,
+	}
+
+	log.Printf("method=%s path=%q message=%q cause=%q", req.Method, req.URL.Path, stdError.Message, stdError.Cause)
+
+	stdErrorJson, err := json.Marshal(stdError)
+	if err != nil {
+		panic(err)
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	http.Error(res, string(stdErrorJson), httpStatus)
+}
+
 func handleGet(res http.ResponseWriter, req *http.Request) {
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
-		http.Error(res, "Error reading path: "+err.Error(), http.StatusBadRequest)
+		if os.IsNotExist(err) {
+			handleError(res, req, err, http.StatusNotFound, "File not found")
+			return
+		}
+
+		handleError(res, req, err, http.StatusBadRequest, "Error reading path")
 		return
 	}
 
 	pathInfo, err := path.Stat()
 	if err != nil {
-		http.Error(res, "Error reading path info: "+err.Error(), http.StatusInternalServerError)
+		handleError(res, req, err, http.StatusInternalServerError, "Error reading path info")
 		return
 	}
 
 	if pathInfo.Mode().IsDir() {
 		fileInfos, err := path.Readdir(0)
 		if err != nil {
-			http.Error(res, "Error reading dir: "+err.Error(), http.StatusInternalServerError)
+			handleError(res, req, err, http.StatusInternalServerError, "Error reading directory")
 			return
 		}
 
@@ -78,14 +106,17 @@ func handleGet(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Type", "application/json")
 		fileResponsesJson, err := json.Marshal(fileResponses)
 		if err != nil {
-			http.Error(res, "Error converting JSON: "+err.Error(), http.StatusInternalServerError)
+			handleError(res, req, err, http.StatusInternalServerError, "Error serializing response")
 			return
 		}
 		res.Write(fileResponsesJson)
 	} else if pathInfo.Mode().IsRegular() {
 		io.Copy(res, path)
 	} else {
-		http.Error(res, "Invalid file type: "+string(pathInfo.Mode().String()[0]), http.StatusBadRequest)
+		handleError(res, req,
+			fmt.Errorf("Invalid file type: "+string(pathInfo.Mode().String()[0])),
+			http.StatusBadRequest,
+			"Invalid file type")
 	}
 }
 
