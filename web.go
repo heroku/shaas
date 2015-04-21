@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -64,18 +66,30 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			return
 		}
 
-		fileResponses := map[string]fileInfoDetails{}
-		for _, fi := range fileInfos {
-			fileResponses[fi.Name()] = toFileInfoDetails(fi)
+		if strings.Contains(req.Header.Get("Accept"), "html") {
+			res.Header().Set("Content-Type", "text/html")
+			fmt.Fprintf(res, "<pre><ul>")
+			for _, fi := range fileInfos {
+				label := fi.Name()
+				if fi.IsDir() {
+					label = "/" + label
+				}
+				fmt.Fprintf(res, "<li><a href='%s/%s'>%s</a></li>", path.Name(), fi.Name(), html.EscapeString(label))
+			}
+			fmt.Fprintf(res, "</ul></pre>")
+		} else {
+			res.Header().Set("Content-Type", "application/json")
+			fileResponses := map[string]fileInfoDetails{}
+			for _, fi := range fileInfos {
+				fileResponses[fi.Name()] = toFileInfoDetails(fi)
+			}
+			fileResponsesJson, err := json.Marshal(fileResponses)
+			if err != nil {
+				handleError(res, req, err, http.StatusInternalServerError, "Error serializing response")
+				return
+			}
+			res.Write(fileResponsesJson)
 		}
-
-		res.Header().Set("Content-Type", "application/json")
-		fileResponsesJson, err := json.Marshal(fileResponses)
-		if err != nil {
-			handleError(res, req, err, http.StatusInternalServerError, "Error serializing response")
-			return
-		}
-		res.Write(fileResponsesJson)
 	} else if pathInfo.Mode().IsRegular() {
 		io.Copy(res, path)
 	} else {

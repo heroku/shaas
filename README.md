@@ -36,7 +36,7 @@ Date: Tue, 21 Apr 2015 17:26:53 GMT
 Content-Length: 1020
 
 {
-  "view": {
+  "views": {
     "size": 11,
     "type": "d",
     "permission": 493,
@@ -48,6 +48,22 @@ Content-Length: 1020
     "permission": 420,
     "updated_at": "2015-04-21T10:27:37-07:00"
   }
+}
+```
+
+If viewing the directory in a browser (or any client with a `html` in the `Accept` header), the listing will be returned in HTML:
+
+```
+$ curl http://shaas.example.com/app -i -X GET -H 'Accept: text/html'
+HTTP/1.1 200 OK
+Content-Type: text/html
+Date: Tue, 21 Apr 2015 17:46:58 GMT
+Content-Length: 185
+
+<ul>
+    <li><a href='views'>/views</a></li>
+    <li><a href='README.md'>README.md</a></li>
+</ul>
 }
 ```
 
@@ -77,8 +93,6 @@ Content-Type: image/jpeg
 
 <BINARY DATA>
 ```
-
-
 
 ## Deployment
 
