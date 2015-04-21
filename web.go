@@ -15,7 +15,7 @@ func main() {
 }
 
 func Start(port string) {
-	http.HandleFunc("/", handleAll)
+	http.HandleFunc("/", handleAny)
 
 	if port == "" {
 		port = "5000"
@@ -24,7 +24,7 @@ func Start(port string) {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-func handleAll(res http.ResponseWriter, req *http.Request) {
+func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
 
 	path, err := os.Open(req.URL.Path)
