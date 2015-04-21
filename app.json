@@ -1,0 +1,15 @@
+{
+    "name": "shaas",
+    "description": "Shell as a Service",
+    "website": "https://github.com/heroku/shaas",
+    "repository": "https://github.com/heroku/shaas",
+    "keywords": [
+        "shell",
+        "golang",
+        "testing",
+        "rest"
+    ],
+    "env": {
+        "BUILDPACK_URL": "https://github.com/heroku/heroku-buildpack-go.git"
+    }
+}
