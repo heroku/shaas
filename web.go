@@ -64,9 +64,9 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			return
 		}
 
-		fileResponses := []fileInfoResponse{}
+		fileResponses := map[string]fileInfoDetails{}
 		for _, fi := range fileInfos {
-			fileResponses = append(fileResponses, toFileInfoResponse(fi))
+			fileResponses[fi.Name()] = toFileInfoDetails(fi)
 		}
 
 		res.Header().Set("Content-Type", "application/json")
@@ -105,17 +105,15 @@ func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathI
 	}
 }
 
-type fileInfoResponse struct {
-	Name    string    `json:"name"`
+type fileInfoDetails struct {
 	Size    int64     `json:"size"`
 	Type    string    `json:"type"`
 	Perm    int       `json:"permission"`
 	ModTime time.Time `json:"updated_at"`
 }
 
-func toFileInfoResponse(fi os.FileInfo) fileInfoResponse {
-	return fileInfoResponse{
-		Name:    fi.Name(),
+func toFileInfoDetails(fi os.FileInfo) fileInfoDetails {
+	return fileInfoDetails{
 		Size:    fi.Size(),
 		Type:    string(fi.Mode().String()[0]),
 		Perm:    int(fi.Mode().Perm()),
