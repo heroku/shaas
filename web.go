@@ -33,7 +33,7 @@ func Start(port string) {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-type FileInfoResponse struct {
+type fileInfoResponse struct {
 	Name    string    `json:"name"`
 	Size    int64     `json:"size"`
 	Type    string    `json:"type"`
@@ -61,9 +61,9 @@ func handleGet(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		fileResponses := []FileInfoResponse{}
+		fileResponses := []fileInfoResponse{}
 		for _, fi := range fileInfos {
-			fileResponses = append(fileResponses, FileInfoResponse{
+			fileResponses = append(fileResponses, fileInfoResponse{
 				Name:    fi.Name(),
 				Size:    fi.Size(),
 				Type:    string(fi.Mode().String()[0]),
