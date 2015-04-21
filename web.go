@@ -70,11 +70,17 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			res.Header().Set("Content-Type", "text/html")
 			fmt.Fprintf(res, "<pre><ul>")
 			for _, fi := range fileInfos {
+				pathName := path.Name()
+				if !strings.HasSuffix(pathName, "/") {
+					pathName += "/"
+				}
+
 				label := fi.Name()
 				if fi.IsDir() {
 					label = "/" + label
 				}
-				fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", path.Name(), fi.Name(), html.EscapeString(label))
+
+				fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
 			}
 			fmt.Fprintf(res, "</ul></pre>")
 		} else {
