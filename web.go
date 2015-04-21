@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -65,7 +64,7 @@ func handleGet(res http.ResponseWriter, req *http.Request) {
 	}
 
 	if pathInfo.Mode().IsDir() {
-		fileInfos, err := ioutil.ReadDir(req.URL.Path)
+		fileInfos, err := path.Readdir(0)
 		if err != nil {
 			http.Error(res, "Error reading dir: "+err.Error(), http.StatusInternalServerError)
 			return
