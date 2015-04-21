@@ -67,34 +67,9 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 		}
 
 		if strings.Contains(req.Header.Get("Accept"), "html") {
-			res.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(res, "<pre><ul>")
-			for _, fi := range fileInfos {
-				pathName := path.Name()
-				if !strings.HasSuffix(pathName, "/") {
-					pathName += "/"
-				}
-
-				label := fi.Name()
-				if fi.IsDir() {
-					label = "/" + label
-				}
-
-				fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
-			}
-			fmt.Fprintf(res, "</ul></pre>")
+			renderDirHtml(res, path.Name(), fileInfos)
 		} else {
-			res.Header().Set("Content-Type", "application/json")
-			fileResponses := map[string]fileInfoDetails{}
-			for _, fi := range fileInfos {
-				fileResponses[fi.Name()] = toFileInfoDetails(fi)
-			}
-			fileResponsesJson, err := json.Marshal(fileResponses)
-			if err != nil {
-				handleError(res, req, err, http.StatusInternalServerError, "Error serializing response")
-				return
-			}
-			res.Write(fileResponsesJson)
+			renderDirJson(res, fileInfos)
 		}
 	} else if pathInfo.Mode().IsRegular() {
 		io.Copy(res, path)
@@ -123,6 +98,37 @@ func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathI
 			fmt.Errorf("Invalid file type for POST. Only directories are supported"),
 			http.StatusBadRequest, "Invalid file type")
 	}
+}
+
+func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.FileInfo) {
+	res.Header().Set("Content-Type", "text/html")
+	fmt.Fprintf(res, "<pre><ul>")
+	for _, fi := range fileInfos {
+		if !strings.HasSuffix(pathName, "/") {
+			pathName += "/"
+		}
+
+		label := fi.Name()
+		if fi.IsDir() {
+			label = "/" + label
+		}
+
+		fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
+	}
+	fmt.Fprintf(res, "</ul></pre>")
+}
+
+func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
+	res.Header().Set("Content-Type", "application/json")
+	fileResponses := map[string]fileInfoDetails{}
+	for _, fi := range fileInfos {
+		fileResponses[fi.Name()] = toFileInfoDetails(fi)
+	}
+	fileResponsesJson, err := json.Marshal(fileResponses)
+	if err != nil {
+		panic(err)
+	}
+	res.Write(fileResponsesJson)
 }
 
 type fileInfoDetails struct {
