@@ -74,7 +74,7 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 				if fi.IsDir() {
 					label = "/" + label
 				}
-				fmt.Fprintf(res, "<li><a href='%s/%s'>%s</a></li>", path.Name(), fi.Name(), html.EscapeString(label))
+				fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", path.Name(), fi.Name(), html.EscapeString(label))
 			}
 			fmt.Fprintf(res, "</ul></pre>")
 		} else {
