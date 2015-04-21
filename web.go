@@ -41,6 +41,16 @@ type fileInfoResponse struct {
 	ModTime time.Time `json:"updated_at"`
 }
 
+func toFileInfoResponse(fi os.FileInfo) fileInfoResponse {
+	return fileInfoResponse{
+		Name:    fi.Name(),
+		Size:    fi.Size(),
+		Type:    string(fi.Mode().String()[0]),
+		Perm:    int(fi.Mode().Perm()),
+		ModTime: fi.ModTime(),
+	}
+}
+
 func handleGet(res http.ResponseWriter, req *http.Request) {
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
@@ -63,13 +73,7 @@ func handleGet(res http.ResponseWriter, req *http.Request) {
 
 		fileResponses := []fileInfoResponse{}
 		for _, fi := range fileInfos {
-			fileResponses = append(fileResponses, fileInfoResponse{
-				Name:    fi.Name(),
-				Size:    fi.Size(),
-				Type:    string(fi.Mode().String()[0]),
-				Perm:    int(fi.Mode().Perm()),
-				ModTime: fi.ModTime(),
-			})
+			fileResponses = append(fileResponses, toFileInfoResponse(fi))
 		}
 
 		res.Header().Set("Content-Type", "application/json") // TODO allow others
