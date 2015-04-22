@@ -106,7 +106,7 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 			// TODO: allow interactive session to have a prompt, support heredocs, handle arrow keys, and generally act like a real terminal
 			// cmd = exec.Command("bash", "-i") // double echos (ws + bash -i) and displays arrow character
 
-            // pseudo-interactive-bash worksaround `bash -i` echoing problem, but breaks on heredocs and probably other bash special cases
+			// pseudo-interactive-bash worksaround `bash -i` echoing problem, but breaks on heredocs and probably other bash special cases
 			dir, err := os.Getwd()
 			if err != nil {
 				log.Fatal(err)
@@ -164,7 +164,7 @@ func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	for _, fi := range fileInfos {
 		fileResponses[fi.Name()] = toFileInfoDetails(fi)
 	}
-	fileResponsesJson, err := json.Marshal(fileResponses)
+	fileResponsesJson, err := json.MarshalIndent(fileResponses, "", "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -200,7 +200,7 @@ func handleError(res http.ResponseWriter, req *http.Request, err error, httpStat
 
 	log.Printf("method=%s path=%q message=%q cause=%q", req.Method, req.URL.Path, stdError.Message, stdError.Cause)
 
-	stdErrorJson, err := json.Marshal(stdError)
+	stdErrorJson, err := json.MarshalIndent(stdError, "", "  ")
 	if err != nil {
 		panic(err)
 	}
