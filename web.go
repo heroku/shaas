@@ -14,17 +14,8 @@ import (
 )
 
 func main() {
-	Start(os.Getenv("PORT"))
-}
-
-func Start(port string) {
 	http.HandleFunc("/", handleAny)
-
-	if port == "" {
-		port = "5000"
-	}
-	log.Println("listening on port:", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+httpPort(), nil))
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
@@ -74,29 +65,36 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 	} else if pathInfo.Mode().IsRegular() {
 		io.Copy(res, path)
 	} else {
-		handleError(res, req,
-			fmt.Errorf("Invalid file type for GET. Only directories and regular files are supported."),
-			http.StatusBadRequest, "Invalid file type")
+		handleError(res, req, nil,
+			http.StatusBadRequest,
+			"Invalid file type for GET. Only directories and regular files are supported.")
 	}
 }
 
 func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
+	resFlusherWriter := flushWriterWrapper{res.(flushWriter)}
+	var cmd *exec.Cmd
+
 	if pathInfo.Mode().IsDir() {
-		resFlusherWriter := flushWriterWrapper{res.(flushWriter)}
-		cmd := exec.Command("sh")
+		cmd = exec.Command("sh")
 		cmd.Dir = path.Name()
-		cmd.Env = []string{}
-		cmd.Stdin = req.Body
-		cmd.Stdout = resFlusherWriter
-		cmd.Stderr = resFlusherWriter
-		if err := cmd.Run(); err != nil {
-			handleError(res, req, err, http.StatusInternalServerError, "Error running command")
-			return
-		}
+	} else if pathInfo.Mode().IsRegular() && pathInfo.Mode()&0110 != 0 /* is executable for user or group */ {
+		cmd = exec.Command(path.Name())
+		cmd.Dir = path.Name()[0:strings.LastIndex(path.Name(), string(os.PathSeparator))]
 	} else {
-		handleError(res, req,
-			fmt.Errorf("Invalid file type for POST. Only directories are supported"),
-			http.StatusBadRequest, "Invalid file type")
+		handleError(res, req, nil,
+			http.StatusBadRequest,
+			"Invalid file type for POST. Only directories and regular executable file are supported")
+		return
+	}
+
+	cmd.Env = cgiEnv(req)
+	cmd.Stdin = req.Body
+	cmd.Stdout = resFlusherWriter
+	cmd.Stderr = resFlusherWriter
+	if err := cmd.Run(); err != nil {
+		// error already sent to client. log only
+		log.Printf("method=%s path=%q message=%q", req.Method, req.URL.Path, err)
 	}
 }
 
@@ -182,4 +180,69 @@ func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
 	n, err = fww.fw.Write(p)
 	fww.fw.Flush()
 	return
+}
+
+func httpPort() string {
+	if port := os.Getenv("PORT"); port != "" {
+		return port
+	}
+	return "5000"
+}
+
+// copied from net/http/cgi/host.go
+func cgiEnv(req *http.Request) []string {
+	env := []string{
+		"SERVER_SOFTWARE=go",
+		"SERVER_NAME=" + req.Host,
+		"SERVER_PROTOCOL=HTTP/1.1",
+		"HTTP_HOST=" + req.Host,
+		"GATEWAY_INTERFACE=CGI/1.1",
+		"REQUEST_METHOD=" + req.Method,
+		"QUERY_STRING=" + req.URL.RawQuery,
+		"REQUEST_URI=" + req.URL.RequestURI(),
+		"PATH_INFO=" + req.URL.Path,
+		"SCRIPT_NAME=" + req.URL.Path,
+		"SCRIPT_FILENAME=" + req.URL.Path,
+		"REMOTE_ADDR=" + req.RemoteAddr,
+		"REMOTE_HOST=" + req.RemoteAddr,
+		"SERVER_PORT=" + httpPort(),
+	}
+
+	if req.TLS != nil {
+		env = append(env, "HTTPS=on")
+	}
+
+	for k, v := range req.Header {
+		k = strings.Map(upperCaseAndUnderscore, k)
+		joinStr := ", "
+		if k == "COOKIE" {
+			joinStr = "; "
+		}
+		env = append(env, "HTTP_"+k+"="+strings.Join(v, joinStr))
+	}
+
+	if req.ContentLength > 0 {
+		env = append(env, fmt.Sprintf("CONTENT_LENGTH=%d", req.ContentLength))
+	}
+	if ctype := req.Header.Get("Content-Type"); ctype != "" {
+		env = append(env, "CONTENT_TYPE="+ctype)
+	}
+
+	return env
+}
+
+func upperCaseAndUnderscore(r rune) rune {
+	switch {
+	case r >= 'a' && r <= 'z':
+		return r - ('a' - 'A')
+	case r == '-':
+		return '_'
+	case r == '=':
+		// Maybe not part of the CGI 'spec' but would mess up
+		// the environment in any case, as Go represents the
+		// environment as a slice of "key=value" strings.
+		return '_'
+	}
+	// TODO: other transformations in spec or practice?
+	return r
 }

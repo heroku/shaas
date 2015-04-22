@@ -8,11 +8,9 @@ REST API to shell out to the server's environment. This is obviously a *really b
 
 ## Usage
 
-All interactions are possible with `POST`, but as a convenience, `GET` is also provided to list directories and download regular files.
-
 ### Executing Commands
 
-To execute a command in a given directory on the server, simply `POST` the command with the directory as the URL path. For example, running `pwd` in the directory `/app/views` returns the path in the response:
+To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. The command runs with CGI environment variables. For example, running `pwd` in the directory `/app/views` returns the path in the response:
 
 ```
 $ curl http://shaas.example.com/app/views -i -X POST -d 'pwd'
@@ -22,6 +20,22 @@ Content-Type: text/plain; charset=utf-8
 Transfer-Encoding: chunked
 
 /app/views
+```
+
+This is the most versatile endpoint. The functionality of all the other endpoints could be achieved with a `POST` to a directory path, but are offered as a convenience.
+
+### Executing Scripts
+
+To execute a script on the server, simply `POST` the script path as the URL path. The script runs with CGI environment variables. For example, to run an executable script at `/app/bin/migrate`:
+
+```
+$ curl http://shaas.example.com/app/bin/migrate -i -X POST -d 'input to script'
+HTTP/1.1 200 OK
+Date: Tue, 21 Apr 2015 17:22:07 GMT
+Content-Type: text/plain; charset=utf-8
+Transfer-Encoding: chunked
+
+migration complete
 ```
 
 ### Listing a Directory
