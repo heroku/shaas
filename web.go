@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	p "path"
 	"strconv"
 	"strings"
 	"time"
@@ -103,8 +104,15 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	if pathInfo.Mode().IsDir() {
 		if interactive {
 			// TODO: allow interactive session to have a prompt, support heredocs, handle arrow keys, and generally act like a real terminal
-			cmd = exec.Command("bin/pseudo-interactive-bash") // fixes `bash -i` echoing problem, but breaks on heredocs and probably other bash special cases
-//			cmd = exec.Command("bash", "-i") // double echos (ws + bash -i) and displays arrow character
+			// cmd = exec.Command("bash", "-i") // double echos (ws + bash -i) and displays arrow character
+
+            // pseudo-interactive-bash worksaround `bash -i` echoing problem, but breaks on heredocs and probably other bash special cases
+			dir, err := os.Getwd()
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println(dir)
+			cmd = exec.Command(p.Join(dir, "bin", "pseudo-interactive-bash"))
 		} else {
 			cmd = exec.Command("bash")
 		}
