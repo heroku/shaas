@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-set -e
-
-# re-creates the slug for this app for download from heroku
-
-tar cz --transform s,^./,./app/, --owner=root --absolute-names /app
