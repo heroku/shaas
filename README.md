@@ -4,16 +4,18 @@ Shell as a Service
 [![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/heroku/shaas)
 
 ## Overview
-REST API to shell out to the server's environment. This is obviously a *really bad idea* on a server that you care about, but this is a convenience for testing servers that can only be accessed via HTTP. This offers no protection whatsoever for the server. Please use with great caution.
+API to inspect and execute scripts in the server's environment.
+
+**This is obviously a *really bad idea* on a server that you care about, but this is a convenience for testing purposes only. This offers no protection whatsoever for the server. This makes the server's entire file system accessible to clients. Please use with great caution.**
 
 ## Usage
 
-Summary of endpoint behavior for all path and method combinations:
+Summary of endpoint behavior for all path, method, and protocol combinations:
 
-| Path / Method |                   POST                   |         GET         |
-|---------------|------------------------------------------|---------------------|
-| File          | runs path in context of path's directory | downloads path      |
-| Directory     | runs body in context of directory path   | lists files in path |
+|           |                 POST                  |         GET         |                      WebSocket                      |
+|-----------|---------------------------------------|---------------------|-----------------------------------------------------|
+| File      | runs path in context of its directory | downloads path      | interactively runs path in context of its directory |
+| Directory | runs body in context of path          | lists files in path | runs interactive shell in context of path           |
 
 ### Executing Commands
 
@@ -43,6 +45,17 @@ Content-Type: text/plain; charset=utf-8
 Transfer-Encoding: chunked
 
 migration complete
+```
+
+### Interactive Sessions
+
+By accessing the endpoints above via WebSockets, the commands are run interactively. If the path is a directory, an interactive `bash` session is started in that directory. If the path is a script, it is run in an interactive session. For example, using the [wssh](https://github.com/progrium/wssh) client:
+
+```
+$ wssh ws://shaas.example.com/app
+/app $ echo 'hello'
+echo 'hello'
+hello
 ```
 
 ### Listing a Directory

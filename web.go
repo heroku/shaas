@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/websocket"
 	"html"
 	"io"
 	"log"
@@ -36,6 +37,11 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	pathInfo, err := path.Stat()
 	if err != nil {
 		handleError(res, req, err, http.StatusInternalServerError, "Error reading path info")
+		return
+	}
+
+	if strings.HasPrefix(req.Header.Get("Origin"), "ws://") { // TODO: how to detect? scheme is null
+		handleWs(res, req, path, pathInfo)
 		return
 	}
 
@@ -73,10 +79,25 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 
 func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
 	resFlusherWriter := flushWriterWrapper{res.(flushWriter)}
+	execCmd(res, req, path, pathInfo, req.Body, resFlusherWriter, false)
+}
+
+func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
+	handler := func(ws *websocket.Conn) {
+		execCmd(res, req, path, pathInfo, ws, ws, true)
+	}
+
+	websocket.Handler(handler).ServeHTTP(res, req)
+}
+
+func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo, in io.Reader, out io.Writer, interactive bool) {
 	var cmd *exec.Cmd
 
 	if pathInfo.Mode().IsDir() {
-		cmd = exec.Command("sh")
+		cmd = exec.Command("bash")
+		if interactive {
+			cmd.Args = append(cmd.Args, "-i")
+		}
 		cmd.Dir = path.Name()
 	} else if pathInfo.Mode().IsRegular() && pathInfo.Mode()&0110 != 0 /* is executable for user or group */ {
 		cmd = exec.Command(path.Name())
@@ -89,9 +110,12 @@ func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathI
 	}
 
 	cmd.Env = cgiEnv(req)
-	cmd.Stdin = req.Body
-	cmd.Stdout = resFlusherWriter
-	cmd.Stderr = resFlusherWriter
+	if interactive {
+		cmd.Env = append(cmd.Env, "PS1=\\[\\033[01;34m\\]\\w\\[\\033[00m\\] \\[\\033[01;32m\\]$ \\[\\033[00m\\]")
+	}
+	cmd.Stdin = in
+	cmd.Stdout = out
+	cmd.Stderr = out
 	if err := cmd.Run(); err != nil {
 		// error already sent to client. log only
 		log.Printf("method=%s path=%q message=%q", req.Method, req.URL.Path, err)
