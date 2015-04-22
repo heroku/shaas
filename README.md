@@ -8,6 +8,13 @@ REST API to shell out to the server's environment. This is obviously a *really b
 
 ## Usage
 
+Summary of endpoint behavior for all path and method combinations:
+
+| Path / Method |                   POST                   |         GET         |
+|---------------|------------------------------------------|---------------------|
+| File          | runs path in context of path's directory | downloads path      |
+| Directory     | runs body in context of directory path   | lists files in path |
+
 ### Executing Commands
 
 To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. The command runs with CGI environment variables. For example, running `pwd` in the directory `/app/views` returns the path in the response:
