@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -69,6 +70,12 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			renderDirJson(res, fileInfos)
 		}
 	} else if pathInfo.Mode().IsRegular() {
+		stat, err := path.Stat()
+		if err != nil {
+			handleError(res, req, err, http.StatusInternalServerError, "Error reading file stat")
+			return
+		}
+		res.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
 		io.Copy(res, path)
 	} else {
 		handleError(res, req, nil,
@@ -95,7 +102,7 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 
 	if pathInfo.Mode().IsDir() {
 		if interactive {
-            // TODO: allow interactive session to have a prompt, support heredocs, handle arrow keys, and generally act like a real terminal
+			// TODO: allow interactive session to have a prompt, support heredocs, handle arrow keys, and generally act like a real terminal
 			// cmd = exec.Command("bin/pseudo-interactive-bash") // fixes `bash -i` echoing problem, but breaks on heredocs and probably other bash special cases
 			cmd = exec.Command("bash", "-i") // double echos (ws + bash -i) and displays arrow character
 		} else {
