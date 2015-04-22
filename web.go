@@ -94,9 +94,11 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	var cmd *exec.Cmd
 
 	if pathInfo.Mode().IsDir() {
-		cmd = exec.Command("bash")
 		if interactive {
-			cmd.Args = append(cmd.Args, "-i")
+            // workaround for `bash -i` echoing input
+			cmd = exec.Command("bin/pseudo-interactive-bash")
+		} else {
+			cmd = exec.Command("bash")
 		}
 		cmd.Dir = path.Name()
 	} else if pathInfo.Mode().IsRegular() && pathInfo.Mode()&0110 != 0 /* is executable for user or group */ {
@@ -110,9 +112,6 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	}
 
 	cmd.Env = cgiEnv(req)
-	if interactive {
-		cmd.Env = append(cmd.Env, "PS1=\\[\\033[01;34m\\]\\w\\[\\033[00m\\] \\[\\033[01;32m\\]$ \\[\\033[00m\\]")
-	}
 	cmd.Stdin = in
 	cmd.Stdout = out
 	cmd.Stderr = out

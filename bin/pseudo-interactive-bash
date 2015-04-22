@@ -1,0 +1,7 @@
+#!/usr/bin/env bash +x
+
+while :; do
+  echo -n -e "\033[01;34m$(pwd) $ \033[0m"
+  read -e line
+  eval "$line"
+done
