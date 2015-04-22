@@ -1,4 +1,4 @@
-#!/usr/bin/env bash +x
+#!/usr/bin/env bash
 
 while :; do
   echo -n -e "\033[01;34m$(pwd) $ \033[0m"
