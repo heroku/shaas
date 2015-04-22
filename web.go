@@ -168,7 +168,7 @@ func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	if err != nil {
 		panic(err)
 	}
-	res.Write(fileResponsesJson)
+	fmt.Fprintln(res, string(fileResponsesJson))
 }
 
 type fileInfoDetails struct {
