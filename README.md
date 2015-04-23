@@ -10,11 +10,11 @@ API to inspect and execute scripts in a server's environment via HTTP and WebSoc
 
 Because this application gives clients full access to the server, it is highly recommended to run it inside of some kind of containerized environment, such as [Heroku](http://www.heroku.com) or [Docker](https://www.docker.com/):
 
-## Heroku
+### Heroku
 
 [![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/heroku/shaas)
 
-## Docker
+### Docker
 
 Running with [Docker Compose](https://docs.docker.com/compose):
 
