@@ -46,7 +46,7 @@ This is the most versatile endpoint. The functionality of all the other endpoint
 
 ### Executing Scripts
 
-To execute a script on the server, simply `POST` the script path as the URL path. The script runs with CGI environment variables. For example, to run an executable script at `/app/bin/migrate`:
+To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. The script runs with CGI environment variables. For example, to run an executable script at `/app/bin/migrate`:
 
     $ curl http://shaas.example.com/app/bin/migrate -i -X POST -d 'input to script'
     HTTP/1.1 200 OK
