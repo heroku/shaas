@@ -167,6 +167,6 @@ Files are returned in their native format:
 
 ## Testing
 
-Due to the nature of this application and the access it has to the host machine, testing is done functionality within a Docker container. To run tests:
+Due to the nature of this application and the access it has to the host machine, testing is done functionality within a [Docker](https://www.docker.com) container. To run tests, be sure Docker is running, [Docker Compose](https://docs.docker.com/compose) is installed, and run:
 
     $ go test -v ./... -ftest
