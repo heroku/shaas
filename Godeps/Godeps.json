@@ -1,7 +1,14 @@
 {
 	"ImportPath": "github.com/heroku/shaas",
 	"GoVersion": "go1.4.2",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Rev": "e22aedd37671fb115be6c0c25129c405cb575cfd"
+		},
 		{
 			"ImportPath": "golang.org/x/net/websocket",
 			"Rev": "4977ec316d25d824a5da6df00ef57ae03833166c"

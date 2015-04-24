@@ -127,3 +127,9 @@ Files are returned in their native format:
     Content-Type: image/jpeg
 
     <BINARY DATA>
+
+## Testing
+
+Due to the nature of this application and the access it has to the host machine, testing is done functionality within a Docker container. To run tests:
+
+    $ go test -v ./... -ftest
