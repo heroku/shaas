@@ -32,7 +32,7 @@ Summary of endpoint behavior for all path, method, and protocol combinations:
 
 ### Executing Commands
 
-To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. The command runs with CGI environment variables. For example, running `pwd` in the directory `/app/views` returns the path in the response:
+To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. For example, running `pwd` in the directory `/app/views` returns the path in the response:
 
     $ curl http://shaas.example.com/app/views -i -X POST -d 'pwd'
     HTTP/1.1 200 OK
@@ -46,7 +46,7 @@ This is the most versatile endpoint. The functionality of all the other endpoint
 
 ### Executing Scripts
 
-To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. The script runs with CGI environment variables. For example, to run an executable script at `/app/bin/migrate`:
+To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. For example, to run an executable script at `/app/bin/migrate`:
 
     $ curl http://shaas.example.com/app/bin/migrate -i -X POST -d 'input to script'
     HTTP/1.1 200 OK
@@ -55,6 +55,44 @@ To execute a script on the server, simply `POST` the script path as the URL path
     Transfer-Encoding: chunked
 
     migration complete
+
+### CGI Environment Variables
+
+All commands and scripts are automatically run with [CGI](http://en.wikipedia.org/wiki/Common_Gateway_Interface) environment variables for access to HTTP headers, query parameters, and other metadata:
+    
+    $ curl http://shaas.example.com/ -X POST -d 'env | sort'
+    CONTENT_LENGTH=10
+    CONTENT_TYPE=application/x-www-form-urlencoded
+    GATEWAY_INTERFACE=CGI/1.1
+    HTTP_ACCEPT=*/*
+    HTTP_CONNECTION=close
+    HTTP_CONNECT_TIME=5
+    HTTP_CONTENT_LENGTH=10
+    HTTP_CONTENT_TYPE=application/x-www-form-urlencoded
+    HTTP_HOST=shaas.example.com
+    HTTP_TOTAL_ROUTE_TIME=0
+    HTTP_USER_AGENT=curl/7.37.1
+    HTTP_VIA=1.1 vegur
+    HTTP_X_FORWARDED_FOR=73.170.209.186
+    HTTP_X_FORWARDED_PORT=80
+    HTTP_X_FORWARDED_PROTO=http
+    HTTP_X_REQUEST_ID=9003884b-310a-4095-8ff1-0894494aff75
+    HTTP_X_REQUEST_START=1429846020992
+    PATH_INFO=/
+    PWD=/
+    QUERY_STRING=
+    REMOTE_ADDR=10.216.205.205:30916
+    REMOTE_HOST=10.216.205.205:30916
+    REQUEST_METHOD=POST
+    REQUEST_URI=/
+    SCRIPT_FILENAME=/
+    SCRIPT_NAME=/
+    SERVER_NAME=shaas.example.com
+    SERVER_PORT=23389
+    SERVER_PROTOCOL=HTTP/1.1
+    SERVER_SOFTWARE=go
+    SHLVL=1
+    _=/usr/bin/env
 
 ### Interactive Sessions
 
