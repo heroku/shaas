@@ -103,7 +103,6 @@ If viewing the directory in a browser (or any client with a `html` in the `Accep
         <li><a href='views'>/views</a></li>
         <li><a href='README.md'>README.md</a></li>
     </ul>
-    }
 
 To list a directory in plain text, use POST with the `ls` command and options of your choice:
 
