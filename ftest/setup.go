@@ -14,10 +14,6 @@ import (
 	"time"
 )
 
-const baseUrl = "http://localhost:5000"
-const appUrl = baseUrl + "/go/src/app"
-const fixturesUrl = appUrl + "/ftest/fixtures"
-
 var enabled bool
 var skipSetup bool
 
@@ -77,12 +73,12 @@ func (env *TestingEnvironment) create() error {
 
 	log.Print("Waiting for server...")
 	for i := 0; i < 5; i++ {
-		if _, err := http.Get(baseUrl); err == nil {
+		if _, err := http.Get(env.baseUrl()); err == nil {
 			return nil
 		}
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("Server not responding")
+	return fmt.Errorf("Server not responding: " + env.baseUrl())
 }
 
 func (env *TestingEnvironment) destroy() error {
