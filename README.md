@@ -32,29 +32,45 @@ Summary of endpoint behavior for all path, method, and protocol combinations:
 
 ### Executing Commands
 
-To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. For example, running `pwd` in the directory `/app/views` returns the path in the response:
+To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. For example, running `pwd` in the directory `/usr/bin` returns the path in the response:
 
-    $ curl http://shaas.example.com/app/views -i -X POST -d 'pwd'
+    $ curl http://shaas.example.com/usr/bin -i -X POST -d 'pwd'
     HTTP/1.1 200 OK
     Date: Tue, 21 Apr 2015 17:22:07 GMT
     Content-Type: text/plain; charset=utf-8
     Transfer-Encoding: chunked
 
-    /app/views
+    /usr/bin
 
 This is the most versatile endpoint. The functionality of all the other endpoints could be achieved with a `POST` to a directory path, but are offered as a convenience.
 
 ### Executing Scripts
 
-To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. For example, to run an executable script at `/app/bin/migrate`:
+To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. For example, to find the factors of the number 24:
 
-    $ curl http://shaas.example.com/app/bin/migrate -i -X POST -d 'input to script'
+    $ curl http://shaas.example.com/usr/bin/factor -i -X POST -d '24'
     HTTP/1.1 200 OK
-    Date: Tue, 21 Apr 2015 17:22:07 GMT
+    Server: Cowboy
+    Connection: keep-alive
+    Date: Fri, 15 May 2015 16:40:08 GMT
     Content-Type: text/plain; charset=utf-8
     Transfer-Encoding: chunked
+    Via: 1.1 vegur
+    
+    24: 2 2 2 3
+    
+Because `/usr/bin` is on the `PATH`, this could also be run with just the command in the body:
 
-    migration complete
+    $ curl http://shaas.example.com/ -i -X POST -d 'factor 24'
+    HTTP/1.1 200 OK
+    Server: Cowboy
+    Connection: keep-alive
+    Date: Fri, 15 May 2015 16:45:43 GMT
+    Content-Type: text/plain; charset=utf-8
+    Transfer-Encoding: chunked
+    Via: 1.1 vegur
+    
+    24: 2 2 2 3
 
 ### CGI Environment Variables
 
@@ -98,8 +114,8 @@ All commands and scripts are automatically run with [CGI](http://en.wikipedia.or
 
 By accessing the endpoints above via WebSockets, the commands are run interactively. If the path is a directory, an interactive `bash` session is started in that directory. If the path is a script, it is run in an interactive session. For example, using the [wssh](https://github.com/progrium/wssh) client:
 
-    $ wssh ws://shaas.example.com/app
-    /app $ echo 'hello'
+    $ wssh ws://shaas.example.com/
+    / $ echo 'hello'
     echo 'hello'
     hello
 
@@ -108,62 +124,68 @@ By accessing the endpoints above via WebSockets, the commands are run interactiv
 Directories are listed in JSON format for easy parsing:
 
 
-    $ curl http://shaas.example.com/app -i -X GET
+    $ curl http://shaas.example.com/usr -i -X GET
     HTTP/1.1 200 OK
+    Server: Cowboy
+    Connection: keep-alive
     Content-Type: application/json
-    Date: Tue, 21 Apr 2015 17:26:53 GMT
-    Content-Length: 1020
-
+    Date: Fri, 15 May 2015 16:52:29 GMT
+    Content-Length: 996
+    Via: 1.1 vegur
+    
     {
-      "views": {
-        "size": 11,
+      "bin": {
+        "size": 36864,
         "type": "d",
         "permission": 493,
-        "updated_at": "2015-04-20T21:38:49-07:00"
+        "updated_at": "2015-03-20T09:28:58.547556085Z"
       },
-      "README.md": {
-        "size": 1924,
-        "type": "-",
-        "permission": 420,
-        "updated_at": "2015-04-21T10:27:37-07:00"
+      "games": {
+        "size": 4096,
+        "type": "d",
+        "permission": 493,
+        "updated_at": "2014-04-10T22:12:14Z"
       }
-    }
+  }
 
 If viewing the directory in a browser (or any client with a `html` in the `Accept` header), the listing will be returned in HTML:
 
-    $ curl http://shaas.example.com/app -i -X GET -H 'Accept: text/html'
+    $ curl http://shaas.example.com/usr -i -X GET -H 'Accept: text/html'
     HTTP/1.1 200 OK
     Content-Type: text/html
     Date: Tue, 21 Apr 2015 17:46:58 GMT
     Content-Length: 185
 
     <ul>
-        <li><a href='views'>/views</a></li>
-        <li><a href='README.md'>README.md</a></li>
+        <li><a href='bin'>/bin</a></li>
+        <li><a href='games'>/games</a></li>
     </ul>
 
 To list a directory in plain text, use POST with the `ls` command and options of your choice:
 
-    $ curl http://shaas.example.com/app -i -X POST -d 'ls -lA'
-    HTTP/1.1 200 OK
-    Date: Tue, 21 Apr 2015 17:35:43 GMT
-    Content-Type: text/plain; charset=utf-8
-    Transfer-Encoding: chunked
-
-    total 64
-    drwxr-xr-x  12 user  454177323   408 Apr 21 10:35 views
-    -rw-r--r--   1 user  454177323  2268 Apr 21 10:35 README.md
+    $ curl http://dogwood-shaas.herokuapp.com/usr -i -X POST -d 'ls -lA'
+      HTTP/1.1 200 OK
+      Server: Cowboy
+      Connection: keep-alive
+      Date: Fri, 15 May 2015 16:54:28 GMT
+      Content-Type: text/plain; charset=utf-8
+      Transfer-Encoding: chunked
+      Via: 1.1 vegur
+      
+      total 72
+      drwxr-xr-x   2 root root 36864 Mar 20 09:28 bin
+      drwxr-xr-x   2 root root  4096 Apr 10  2014 games
 
 ### Downloading a File
 
 Files are returned in their native format:
 
-    $ curl http://shaas.example.com/app/images/logo.jpeg -i -X GET
+    $ curl http://shaas.example.com/var/logs/server.log -i -X GET
     HTTP/1.1 200 OK
     Date: Tue, 21 Apr 2015 17:31:45 GMT
-    Content-Type: image/jpeg
+    Content-Type: plain/text
 
-    <BINARY DATA>
+    ...
 
 ## Testing
 
