@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	. "github.com/heroku/shaas"
+	"strings"
 )
 
 var env *TestingEnvironment
@@ -41,7 +42,6 @@ func TestMain(m *testing.M) {
 func TestGetFile(t *testing.T) {
 	res, err := http.Get(env.fixturesUrl() + "/a")
 	assert.Nil(t, err)
-
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -49,10 +49,15 @@ func TestGetFile(t *testing.T) {
 	assert.Equal(t, string(body), "A\n")
 }
 
+func TestGetFile_NotFound(t *testing.T) {
+	res, err := http.Get(env.fixturesUrl() + "/b")
+	assert.Nil(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+}
+
 func TestGetDir(t *testing.T) {
 	res, err := http.Get(env.fixturesUrl())
 	assert.Nil(t, err)
-
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -65,4 +70,30 @@ func TestGetDir(t *testing.T) {
 	assert.Equal(t, a.Type, "-")
 	assert.Equal(t, a.Size, int64(2))
 	assert.Equal(t, a.Perm, 420)
+}
+
+func TestPostFile(t *testing.T) {
+	res, err := http.Post(env.baseUrl()+"/usr/bin/factor", "", strings.NewReader("42"))
+	assert.Nil(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	body, err := ioutil.ReadAll(res.Body)
+	assert.Nil(t, err)
+	assert.Equal(t, string(body), "42: 2 3 7\n")
+}
+
+func TestPostFile_NotFound(t *testing.T) {
+	res, err := http.Post(env.fixturesUrl()+"/b", "", strings.NewReader(""))
+	assert.Nil(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+}
+
+func TestPostDir(t *testing.T) {
+	res, err := http.Post(env.fixturesUrl(), "", strings.NewReader("pwd"))
+	assert.Nil(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	body, err := ioutil.ReadAll(res.Body)
+	assert.Nil(t, err)
+	assert.Equal(t, string(body), strings.TrimPrefix(env.fixturesUrl(), env.baseUrl())+"\n")
 }
