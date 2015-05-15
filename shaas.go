@@ -160,7 +160,7 @@ func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.File
 
 func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "application/json")
-	fileResponses := map[string]fileInfoDetails{}
+	fileResponses := map[string]FileInfoDetails{}
 	for _, fi := range fileInfos {
 		fileResponses[fi.Name()] = toFileInfoDetails(fi)
 	}
@@ -171,15 +171,15 @@ func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	fmt.Fprintln(res, string(fileResponsesJson))
 }
 
-type fileInfoDetails struct {
+type FileInfoDetails struct {
 	Size    int64     `json:"size"`
 	Type    string    `json:"type"`
 	Perm    int       `json:"permission"`
 	ModTime time.Time `json:"updated_at"`
 }
 
-func toFileInfoDetails(fi os.FileInfo) fileInfoDetails {
-	return fileInfoDetails{
+func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
+	return FileInfoDetails{
 		Size:    fi.Size(),
 		Type:    string(fi.Mode().String()[0]),
 		Perm:    int(fi.Mode().Perm()),
