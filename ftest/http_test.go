@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 	}
 	defer func() {
 		if !skipSetup {
-			if err := env.Destroy(); err != nil {
+			if err := env.destroy(); err != nil {
 				panic(err)
 			}
 		}
@@ -36,12 +36,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetFile(t *testing.T) {
-	res, err := http.Get(fixturesUrl + "/a")
+	res, err := http.Get(env.fixturesUrl() + "/a")
 	assert.Nil(t, err)
 
-    assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-    body, err := ioutil.ReadAll(res.Body)
-    assert.Nil(t, err)
-    assert.Equal(t, string(body), "A\n")
+	body, err := ioutil.ReadAll(res.Body)
+	assert.Nil(t, err)
+	assert.Equal(t, string(body), "A\n")
 }

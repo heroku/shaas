@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const baseUrl = "http://localhost:5000"
-const appUrl  = baseUrl + "/go/src/app"
-const fixturesUrl  = appUrl + "/ftest/fixtures"
+const appUrl = baseUrl + "/go/src/app"
+const fixturesUrl = appUrl + "/ftest/fixtures"
 
 var enabled bool
 var skipSetup bool
@@ -83,10 +85,32 @@ func (env *TestingEnvironment) create() error {
 	return fmt.Errorf("Server not responding")
 }
 
-func (env *TestingEnvironment) Destroy() error {
+func (env *TestingEnvironment) destroy() error {
 	stop := exec.Command("docker-compose", "stop")
 	stop.Dir = env.projectRoot
 	stop.Stdout = os.Stdout
 	stop.Stderr = os.Stderr
 	return stop.Run()
+}
+
+func (env *TestingEnvironment) baseUrl() string {
+	b2dUrlStr := os.Getenv("DOCKER_HOST")
+	if b2dUrlStr == "" {
+		return "localhost"
+	}
+
+	b2dUrl, err := url.Parse(b2dUrlStr)
+	if err != nil {
+		panic(err)
+	}
+
+	return "http://" + strings.SplitAfter(b2dUrl.Host, ":")[0] + "5000"
+}
+
+func (env *TestingEnvironment) appUrl() string {
+	return env.baseUrl() + "/go/src/app"
+}
+
+func (env *TestingEnvironment) fixturesUrl() string {
+	return env.appUrl() + "/ftest/fixtures"
 }
