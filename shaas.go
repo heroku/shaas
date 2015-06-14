@@ -23,8 +23,7 @@ func main() {
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
-
-	path, err := os.Open(req.URL.Path)
+	path, err := os.Open(os.Getenv("BASE_PATH") + req.URL.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			handleError(res, req, err, http.StatusNotFound, "File not found")
@@ -66,7 +65,7 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 		}
 
 		if strings.Contains(req.Header.Get("Accept"), "html") {
-			renderDirHtml(res, path.Name(), fileInfos)
+			renderDirHtml(res, fileInfos)
 		} else {
 			renderDirJson(res, fileInfos)
 		}
@@ -140,20 +139,18 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	}
 }
 
-func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.FileInfo) {
+func renderDirHtml(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(res, "<pre><ul>")
 	for _, fi := range fileInfos {
-		if !strings.HasSuffix(pathName, "/") {
-			pathName += "/"
-		}
-
+		href := fi.Name()
 		label := fi.Name()
 		if fi.IsDir() {
-			label = "/" + label
+			href = "/" + fi.Name() + "/"
+			label = "/" + fi.Name()
 		}
 
-		fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
+		fmt.Fprintf(res, "<li><a href='%s'>%s</a></li>", href, html.EscapeString(label))
 	}
 	fmt.Fprintf(res, "</ul></pre>")
 }
