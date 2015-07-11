@@ -77,8 +77,8 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			return
 		}
 
-		// explicitly set Content-Length
-		// handle reading special 0-byte unix files
+		// explicitly set Content-Length for clients to track download progress
+		// except for 0 bytes files which could include special 0-byte unix files
 		if stat.Size() > 0 {
 			res.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
 		}
