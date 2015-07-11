@@ -77,11 +77,9 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 			return
 		}
 
-		if stat.Size() == 0 {
-			// handle reading special 0-byte unix files
-			// TODO: better way to determine these from normal 0-byte files?
-			res.Header().Set("Transfer-Encoding", "chunked")
-		} else {
+		// explicitly set Content-Length
+		// handle reading special 0-byte unix files
+		if stat.Size() > 0 {
 			res.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
 		}
 
