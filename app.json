@@ -8,8 +8,5 @@
         "golang",
         "testing",
         "rest"
-    ],
-    "env": {
-        "BUILDPACK_URL": "https://github.com/heroku/heroku-buildpack-go.git"
-    }
+    ]
 }
