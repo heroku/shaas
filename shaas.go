@@ -133,7 +133,7 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 		return
 	}
 
-	cmd.Env = cgiEnv(req)
+	cmd.Env = append(os.Environ(), cgiEnv(req)...)
 	if interactive {
 		cmd.Env = append(cmd.Env, "PS1=\\[\\033[01;34m\\]\\w\\[\\033[00m\\] \\[\\033[01;32m\\]$ \\[\\033[00m\\]")
 	}
