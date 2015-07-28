@@ -156,7 +156,7 @@ func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.File
 
 		label := fi.Name()
 		if fi.IsDir() {
-			label = "/" + label
+			label = label + "/"
 		}
 
 		fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
