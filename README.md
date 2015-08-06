@@ -163,7 +163,7 @@ If viewing the directory in a browser (or any client with a `html` in the `Accep
 
 To list a directory in plain text, use POST with the `ls` command and options of your choice:
 
-    $ curl http://dogwood-shaas.herokuapp.com/usr -i -X POST -d 'ls -lA'
+    $ curl http://shaas.example.com/usr -i -X POST -d 'ls -lA'
       HTTP/1.1 200 OK
       Server: Cowboy
       Connection: keep-alive
