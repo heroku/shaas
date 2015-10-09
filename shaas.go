@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"html"
 	"io"
 	"log"
@@ -14,7 +13,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
+
+var authUser, authPassword string
+var requireBasicAuth bool
+
+func init() {
+	basicAuth := os.Getenv("BASIC_AUTH")
+	if basicAuth != "" {
+		requireBasicAuth = true
+		bits := strings.SplitN(basicAuth, ":", 2)
+		authUser = bits[0]
+		if len(bits) == 2 {
+			authPassword = bits[1]
+		}
+	}
+}
 
 func main() {
 	http.HandleFunc("/", handleAny)
@@ -23,6 +39,16 @@ func main() {
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
+
+	if requireBasicAuth {
+		if user, pass, ok := req.BasicAuth(); !ok {
+			handleError(res, req, fmt.Errorf("Authorization Required"), http.StatusUnauthorized, "Not Authorized")
+			return
+		} else if user != authUser || pass != authPassword {
+			handleError(res, req, fmt.Errorf("Not Authorized"), http.StatusUnauthorized, "Not Authorized")
+			return
+		}
+	}
 
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
