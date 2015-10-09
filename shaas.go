@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"html"
 	"io"
 	"log"
@@ -14,7 +13,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
+
+var authUser, authPassword string
+var requireBasicAuth bool
+
+func init() {
+	basicAuth := os.Getenv("BASIC_AUTH")
+	if basicAuth != "" {
+		requireBasicAuth = true
+		bits := strings.SplitN(basicAuth, ":", 2)
+		authUser = bits[0]
+		if len(bits) == 2 {
+			authPassword = bits[1]
+		}
+	}
+}
 
 func main() {
 	http.HandleFunc("/", handleAny)
@@ -23,6 +39,16 @@ func main() {
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
+
+	if requireBasicAuth {
+		if user, pass, ok := req.BasicAuth(); !ok {
+			handleError(res, req, fmt.Errorf("Authorization Required"), http.StatusUnauthorized, "Not Authorized")
+			return
+		} else if user != authUser || pass != authPassword {
+			handleError(res, req, fmt.Errorf("Not Authorized"), http.StatusUnauthorized, "Not Authorized")
+			return
+		}
+	}
 
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
@@ -66,9 +92,9 @@ func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathIn
 		}
 
 		if strings.Contains(req.Header.Get("Accept"), "html") {
-			renderDirHtml(res, path.Name(), fileInfos)
+			renderDirHTML(res, path.Name(), fileInfos)
 		} else {
-			renderDirJson(res, fileInfos)
+			renderDirJSON(res, fileInfos)
 		}
 	} else if pathInfo.Mode().IsRegular() {
 		stat, err := path.Stat()
@@ -146,7 +172,7 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	}
 }
 
-func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.FileInfo) {
+func renderDirHTML(res http.ResponseWriter, pathName string, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(res, "<pre><ul>")
 	for _, fi := range fileInfos {
@@ -164,19 +190,20 @@ func renderDirHtml(res http.ResponseWriter, pathName string, fileInfos []os.File
 	fmt.Fprintf(res, "</ul></pre>")
 }
 
-func renderDirJson(res http.ResponseWriter, fileInfos []os.FileInfo) {
+func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "application/json")
 	fileResponses := map[string]FileInfoDetails{}
 	for _, fi := range fileInfos {
 		fileResponses[fi.Name()] = toFileInfoDetails(fi)
 	}
-	fileResponsesJson, err := json.MarshalIndent(fileResponses, "", "  ")
+	fileResponsesJSON, err := json.MarshalIndent(fileResponses, "", "  ")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Fprintln(res, string(fileResponsesJson))
+	fmt.Fprintln(res, string(fileResponsesJSON))
 }
 
+// FileInfoDetails contains basic stat + permission details about a file
 type FileInfoDetails struct {
 	Size    int64     `json:"size"`
 	Type    string    `json:"type"`
@@ -206,13 +233,13 @@ func handleError(res http.ResponseWriter, req *http.Request, err error, httpStat
 
 	log.Printf("method=%s path=%q message=%q cause=%q", req.Method, req.URL.Path, stdError.Message, stdError.Cause)
 
-	stdErrorJson, err := json.MarshalIndent(stdError, "", "  ")
+	stdErrorJSON, err := json.MarshalIndent(stdError, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 
 	res.Header().Set("Content-Type", "application/json")
-	http.Error(res, string(stdErrorJson), httpStatus)
+	http.Error(res, string(stdErrorJSON), httpStatus)
 }
 
 type flushWriter interface {
