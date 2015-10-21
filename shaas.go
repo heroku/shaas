@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -85,7 +86,7 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 
 func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
 	if pathInfo.Mode().IsDir() {
-		fileInfos, err := path.Readdir(0)
+		fileInfos, err := ioutil.ReadDir(path.Name())
 		if err != nil {
 			handleError(res, req, err, http.StatusInternalServerError, "Error reading directory")
 			return
