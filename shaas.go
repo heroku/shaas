@@ -34,22 +34,44 @@ func init() {
 }
 
 func main() {
-	http.HandleFunc("/", handleAny)
+	http.HandleFunc("/>/exit", authorize(handleExit))
+	http.HandleFunc("/", authorize(handleAny))
 	log.Fatal(http.ListenAndServe(":"+httpPort(), nil))
+}
+
+func authorize(handler func(http.ResponseWriter, *http.Request)) func(res http.ResponseWriter, req *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		if requireBasicAuth {
+			if user, pass, ok := req.BasicAuth(); !ok {
+				handleError(res, req, fmt.Errorf("Authorization Required"), http.StatusUnauthorized, "Not Authorized")
+				return
+			} else if user != authUser || pass != authPassword {
+				handleError(res, req, fmt.Errorf("Not Authorized"), http.StatusUnauthorized, "Not Authorized")
+				return
+			}
+		}
+
+		handler(res, req)
+	}
+}
+
+// Special path for forcing the server to exit with a given code
+func handleExit(res http.ResponseWriter, req *http.Request) {
+	code := 0
+	var err error
+	if c := req.URL.Query().Get("code"); c != "" {
+		if code, err = strconv.Atoi(c); err != nil {
+			code = 1
+		}
+	}
+
+	log.Printf("exit code=%d", code)
+
+	os.Exit(code)
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
-
-	if requireBasicAuth {
-		if user, pass, ok := req.BasicAuth(); !ok {
-			handleError(res, req, fmt.Errorf("Authorization Required"), http.StatusUnauthorized, "Not Authorized")
-			return
-		} else if user != authUser || pass != authPassword {
-			handleError(res, req, fmt.Errorf("Not Authorized"), http.StatusUnauthorized, "Not Authorized")
-			return
-		}
-	}
 
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
