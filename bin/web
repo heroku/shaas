@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# Facade entry-point to canonical shaas binary for testing purposes
+./shaas
