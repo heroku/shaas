@@ -12,5 +12,5 @@ if [ ! -f $slug_file ]; then
     tar cz --transform s,^./,./app/, --owner=root -C /app . > $slug_tmp_file
     mv $slug_tmp_file $slug_file
 
-    shasum --algorithm 256 $slug_file | cut -f 1 -d ' ' > ${slug_file}.sha256
+    shasum --algorithm 256 $slug_file | cut -f 1 -d ' ' | tr -d '\n' > ${slug_file}.sha256
 fi
