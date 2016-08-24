@@ -89,7 +89,7 @@ func (env *TestingEnvironment) destroy() error {
 	return stop.Run()
 }
 
-func (env *TestingEnvironment) baseUrl() string {
+func (env *TestingEnvironment) host() string {
 	b2dUrlStr := os.Getenv("DOCKER_HOST")
 	if b2dUrlStr == "" {
 		return "localhost"
@@ -100,7 +100,11 @@ func (env *TestingEnvironment) baseUrl() string {
 		panic(err)
 	}
 
-	return "http://" + strings.SplitAfter(b2dUrl.Host, ":")[0] + "5000"
+	return "http://" + strings.Split(b2dUrl.Host, ":")[0]
+}
+
+func (env *TestingEnvironment) baseUrl() string {
+	return fmt.Sprintf("http://%s:5000", env.host())
 }
 
 func (env *TestingEnvironment) appUrl() string {
