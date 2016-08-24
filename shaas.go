@@ -230,7 +230,7 @@ func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 type FileInfoDetails struct {
 	Size    int64     `json:"size"`
 	Type    string    `json:"type"`
-	Perm    int       `json:"permission"`
+	Perm    string    `json:"permission"`
 	ModTime time.Time `json:"updated_at"`
 }
 
@@ -238,7 +238,7 @@ func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
 	return FileInfoDetails{
 		Size:    fi.Size(),
 		Type:    string(fi.Mode().String()[0]),
-		Perm:    int(fi.Mode().Perm()),
+		Perm:    fmt.Sprint(fi.Mode().Perm()),
 		ModTime: fi.ModTime(),
 	}
 }

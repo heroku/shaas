@@ -69,7 +69,7 @@ func TestGetDir(t *testing.T) {
 	assert.NotNil(t, a)
 	assert.Equal(t, a.Type, "-")
 	assert.Equal(t, a.Size, int64(2))
-	assert.Equal(t, a.Perm, 420)
+	assert.Equal(t, a.Perm, "-rw-------")
 }
 
 func TestPostFile(t *testing.T) {
