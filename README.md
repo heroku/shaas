@@ -25,10 +25,10 @@ Running with [Docker Compose](https://docs.docker.com/compose):
 
 Summary of endpoint behavior for all path, method, and protocol combinations:
 
-|           |                 POST                  |         GET         |                      WebSocket                      |
-|-----------|---------------------------------------|---------------------|-----------------------------------------------------|
-| File      | runs path in context of its directory | downloads path      | interactively runs path in context of its directory |
-| Directory | runs body in context of path          | lists files in path | runs interactive shell in context of path           |
+|           |                 POST                  |         GET         |      PUT/APPEND       |                      WebSocket                      |
+|-----------|---------------------------------------|---------------------|-----------------------|-----------------------------------------------------|
+| File      | runs path in context of its directory | downloads path      | uploads body to path  | interactively runs path in context of its directory |
+| Directory | runs body in context of path          | lists files in path | n/a                   | runs interactive shell in context of path           |
 
 ### Executing Commands
 
@@ -186,6 +186,60 @@ Files are returned in their native format:
     Content-Type: plain/text
 
     ...
+
+### Uploading a File
+
+`PUT` creates or replaces a file with the request body:
+
+    $ curl http://shaas.example.com/var/logs/server.log -i -X PUT --data-binary 'hello 1'
+    HTTP/1.1 200 OK
+    Date: Tue, 28 Mar 2017 09:13:05 GMT
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
+
+    $ curl http://shaas.example.com/var/logs/server.log -i -X PUT --data-binary 'hello 2'
+    HTTP/1.1 200 OK
+    Date: Tue, 28 Mar 2017 09:13:05 GMT
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
+
+    $ curl localhost:5000/var/logs/server.log -i
+    HTTP/1.1 200 OK
+    Content-Length: 7
+    Date: Tue, 28 Mar 2017 09:13:38 GMT
+    Content-Type: text/plain; charset=utf-8
+
+    hello 2
+
+`APPEND` creates or appends a file with the request body:
+
+    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
+    HTTP/1.1 200 OK
+    Date: Tue, 28 Mar 2017 09:13:05 GMT
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
+
+    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 2'
+    HTTP/1.1 200 OK
+    Date: Tue, 28 Mar 2017 09:13:05 GMT
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
+
+    $ curl localhost:5000/var/logs/server.log -i
+    HTTP/1.1 200 OK
+    Content-Length: 14
+    Date: Tue, 28 Mar 2017 11:56:43 GMT
+    Content-Type: text/plain; charset=utf-8
+
+    hello-1hello-2
+
+## Overriding HTTP Methods
+
+Because not all clients support all HTTP methods, particularly `PUT` and the custom `APPEND` method, the method can alternatively be overridden with the `_method` query parameter alongd with the `POST` method. For example, the following are equivalent:
+
+    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
+
+    $ curl http://shaas.example.com/var/logs/server.log?_method=APPEND -i -X POST --data-binary 'hello 1'
 
 ## Testing
 

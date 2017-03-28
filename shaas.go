@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"golang.org/x/net/websocket"
+	"path/filepath"
 )
 
 var authUser, authPassword string
@@ -71,7 +72,22 @@ func handleExit(res http.ResponseWriter, req *http.Request) {
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
-	log.Printf("method=%s path=%q", req.Method, req.URL.Path)
+	method := strings.ToUpper(req.Method)
+	if _method := req.URL.Query().Get("_method"); method == "POST" && _method != "" {
+		method = strings.ToUpper(_method)
+	}
+
+	log.Printf("method=%s path=%q", method, req.URL.Path)
+
+	// file non-requiring methods
+	switch method {
+	case "PUT":
+		handleWrite(res, req, req.URL.Path, false)
+		return
+	case "APPEND":
+		handleWrite(res, req, req.URL.Path, true)
+		return
+	}
 
 	path, err := os.Open(req.URL.Path)
 	if err != nil {
@@ -96,14 +112,17 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	switch req.Method {
+	// file-requiring methods
+	switch method {
 	case "GET":
 		handleGet(res, req, path, pathInfo)
+		return
 	case "POST":
 		handlePost(res, req, path, pathInfo)
-	default:
-		http.Error(res, "Only GET and POST supported", http.StatusMethodNotAllowed)
+		return
 	}
+
+	http.Error(res, "Only GET, POST, PUT, APPEND supported", http.StatusMethodNotAllowed)
 }
 
 func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
@@ -192,6 +211,40 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 	if err := cmd.Run(); err != nil {
 		// error already sent to client. log only
 		log.Printf("method=%s path=%q message=%q", req.Method, req.URL.Path, err)
+	}
+}
+
+func handleWrite(res http.ResponseWriter, req *http.Request, pathname string, append bool) {
+	if pathname == "" {
+		handleError(res, req, nil, http.StatusBadRequest, "Missing file pathname")
+		return
+	}
+
+	flags := os.O_CREATE | os.O_WRONLY
+	if append {
+		flags = flags | os.O_APPEND
+	} else {
+		flags = flags | os.O_TRUNC
+	}
+
+	err := os.MkdirAll(filepath.Dir(pathname), 0700)
+	if err != nil {
+		handleError(res, req, err, http.StatusInternalServerError, "Error creating directory")
+		return
+	}
+
+	file, err := os.OpenFile(pathname, flags, 0600)
+	if err != nil {
+		handleError(res, req, err, http.StatusInternalServerError, "Error opening file")
+		return
+	}
+
+	defer file.Close()
+
+	_, err = io.Copy(file, req.Body)
+	if err != nil {
+		handleError(res, req, err, http.StatusInternalServerError, "Error writing to file")
+		return
 	}
 }
 
