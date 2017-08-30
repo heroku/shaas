@@ -11,18 +11,18 @@ import (
 	"os"
 	"os/exec"
 	p "path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/net/websocket"
-	"path/filepath"
 )
 
 var authUser, authPassword string
 var requireBasicAuth bool
 
-func init() {
+func main() {
 	basicAuth := os.Getenv("BASIC_AUTH")
 	if basicAuth != "" {
 		requireBasicAuth = true
@@ -32,12 +32,17 @@ func init() {
 			authPassword = bits[1]
 		}
 	}
-}
 
-func main() {
 	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
-	log.Fatal(http.ListenAndServe(":"+httpPort(), nil))
+
+	for _, p := range httpPorts() {
+		go func(addr string) {
+			log.Fatal(http.ListenAndServe(addr, nil))
+		}(":" + p)
+	}
+
+	select {}
 }
 
 func authorize(handler func(http.ResponseWriter, *http.Request)) func(res http.ResponseWriter, req *http.Request) {
@@ -333,11 +338,33 @@ func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
 	return
 }
 
-func httpPort() string {
+func primaryHTTPPort() string {
 	if port := os.Getenv("PORT"); port != "" {
 		return port
 	}
 	return "5000"
+}
+
+// httpPorts returns a unique list of port numbers to listen
+// on, as strings. It combines the PORT and ADDITIONAL_HTTP_PORTS
+// environment variables.
+func httpPorts() []string {
+	ports := map[string]struct{}{
+		primaryHTTPPort(): struct{}{},
+	}
+
+	if aps := os.Getenv("ADDITIONAL_HTTP_PORTS"); aps != "" {
+		ap := strings.Split(aps, ",")
+		for _, p := range ap {
+			ports[p] = struct{}{}
+		}
+	}
+
+	var out []string
+	for p, _ := range ports {
+		out = append(out, p)
+	}
+	return out
 }
 
 // copied from net/http/cgi/host.go
@@ -356,7 +383,7 @@ func cgiEnv(req *http.Request) []string {
 		"SCRIPT_FILENAME=" + req.URL.Path,
 		"REMOTE_ADDR=" + req.RemoteAddr,
 		"REMOTE_HOST=" + req.RemoteAddr,
-		"SERVER_PORT=" + httpPort(),
+		"SERVER_PORT=" + primaryHTTPPort(),
 	}
 
 	if req.TLS != nil {
