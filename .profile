@@ -9,6 +9,7 @@ set -e
 slug_file=/app/slug.tgz
 if [ ! -f $slug_file ]; then
     slug_tmp_file=/tmp/slug.tgz
+    mkdir -p /app
     cd /app
     find . -type f -print0 | \
         sort -z | \
