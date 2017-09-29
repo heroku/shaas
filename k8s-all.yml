@@ -1,0 +1,64 @@
+apiVersion:                                                                         apps/v1beta1
+kind:                                                                               Deployment
+metadata:
+  name:                                                                             shaas
+spec:
+  replicas:                                                                         2
+  strategy:
+    type:                                                                           RollingUpdate
+    rollingUpdate:
+      maxUnavailable:                                                               1
+      maxSurge:                                                                     0
+  template:                                                                         # create pods using pod definition in this template
+    metadata:
+      labels:
+        app:                                                                        shaas
+      annotations:
+        # This is used to force updates when nothing else changes
+        template/timestamp:                                                         {{ .Timestamp }}
+    spec:
+      containers:
+        - name:                                                                     shaas
+          image:                                                                    {{.ImagePrefix}}shaas:1
+          imagePullPolicy:                                                          Always
+          ports:
+            - containerPort:                                                        5000
+          env:
+            - name:                                                                 PORT
+              value:                                                                "5000"
+          resources:
+            limits:
+              cpu:                                                                  "1"
+              memory:                                                               2048Mi
+            requests:
+              cpu:                                                                  "1"
+              memory:                                                               2048Mi
+          livenessProbe:
+            httpGet:
+                path:                                                               /
+                port:                                                               5000
+            initialDelaySeconds:                                                    10
+            timeoutSeconds:                                                         1
+          readinessProbe:
+            httpGet:
+                path:                                                               /
+                port:                                                               5000
+            initialDelaySeconds:                                                    10
+            timeoutSeconds:                                                         1
+
+---
+
+apiVersion:                                                                         v1
+kind:                                                                               Service
+metadata:
+  name:                                                                             shaas
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname:                                      shaas.{{.SpaceDomain}}
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type:                                                                             LoadBalancer
+  ports:
+  - port:                                                                           80
+    targetPort:                                                                     5000
+  selector:
+    app:                                                                            shaas
