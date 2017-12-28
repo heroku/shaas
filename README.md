@@ -146,7 +146,7 @@ Directories are listed in JSON format for easy parsing:
         "permission": 493,
         "updated_at": "2014-04-10T22:12:14Z"
       }
-  }
+    }
 
 If viewing the directory in a browser (or any client with a `html` in the `Accept` header), the listing will be returned in HTML:
 
