@@ -18,3 +18,5 @@ if [ ! -f $slug_file ]; then
 
     echo SHA256:$(shasum --algorithm 256 $slug_file | cut -f 1 -d ' ') | tr -d '\n' > ${slug_file}.sha256
 fi
+
+set +e
