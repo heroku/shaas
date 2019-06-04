@@ -8,9 +8,9 @@ RUN go install
 FROM ubuntu
 
 RUN apt-get update && apt-get install -y bash && apt-get install -y curl
-WORKDIR /root/
+WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /go/bin/shaas .
 EXPOSE 5000
 
-ENTRYPOINT ["/root/shaas"]
+CMD ["./shaas"]
