@@ -11,16 +11,40 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 )
 
 var enabled bool
 var skipSetup bool
+var env *TestingEnvironment
 
-func init() {
+func TestMain(m *testing.M) {
 	flag.BoolVar(&enabled, "ftest", false, "enable functional tests")
 	flag.BoolVar(&skipSetup, "ftest-skip-setup", false, "skip environment setup")
 	flag.Parse()
+
+	var (
+		status int
+		err    error
+	)
+	if !enabled {
+		fmt.Fprintln(os.Stderr, "WARNING: functional tests are not enabled")
+		os.Exit(0)
+	}
+	env, err = New(skipSetup)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if !skipSetup {
+			if err := env.destroy(); err != nil {
+				panic(err)
+			}
+		}
+		os.Exit(status)
+	}()
+	status = m.Run()
 }
 
 type TestingEnvironment struct {
@@ -51,34 +75,30 @@ func New(skipCreate bool) (*TestingEnvironment, error) {
 }
 
 func (env *TestingEnvironment) create() error {
-	stop := exec.Command("docker-compose", "stop")
-	stop.Dir = env.projectRoot
-	stop.Stdout = os.Stdout
-	stop.Stderr = os.Stderr
-	if err := stop.Run(); err != nil {
-		return err
+	run := func(cmd *exec.Cmd) {
+		cmd.Dir = env.projectRoot
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		log.Printf("ftest fn=create at=run cmd=%q", cmd.String())
+		if err := cmd.Run(); err != nil {
+			panic(err)
+		}
 	}
-	build := exec.Command("docker-compose", "build")
-	build.Dir = env.projectRoot
-	build.Stdout = os.Stdout
-	build.Stderr = os.Stderr
-	if err := build.Run(); err != nil {
-		return err
-	}
-	start := exec.Command("docker-compose", "up", "-d")
-	start.Dir = env.projectRoot
-	start.Stdout = os.Stdout
-	start.Stderr = os.Stderr
-	start.Run()
+
+	run(exec.Command("docker-compose", "stop"))
+	run(exec.Command("docker-compose", "build"))
+	run(exec.Command("docker-compose", "up", "-d"))
+	run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), "shaas_shaas_1:ftest"))
 
 	log.Print("Waiting for server...")
+	var err error
 	for i := 0; i < 5; i++ {
-		if _, err := http.Get(env.baseUrl()); err == nil {
+		if _, err = http.Get(env.baseUrl()); err == nil {
 			return nil
 		}
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("Server not responding: " + env.baseUrl())
+	return fmt.Errorf("Server not responding: %s: \n%s", env.baseUrl(), err.Error())
 }
 
 func (env *TestingEnvironment) destroy() error {
@@ -92,7 +112,7 @@ func (env *TestingEnvironment) destroy() error {
 func (env *TestingEnvironment) baseUrl() string {
 	b2dUrlStr := os.Getenv("DOCKER_HOST")
 	if b2dUrlStr == "" {
-		return "localhost"
+		return "http://localhost:5000"
 	}
 
 	b2dUrl, err := url.Parse(b2dUrlStr)
@@ -103,10 +123,6 @@ func (env *TestingEnvironment) baseUrl() string {
 	return "http://" + strings.SplitAfter(b2dUrl.Host, ":")[0] + "5000"
 }
 
-func (env *TestingEnvironment) appUrl() string {
-	return env.baseUrl() + "/go/src/app"
-}
-
 func (env *TestingEnvironment) fixturesUrl() string {
-	return env.appUrl() + "/ftest/fixtures"
+	return env.baseUrl() + "/ftest/fixtures"
 }
