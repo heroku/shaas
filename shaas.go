@@ -84,8 +84,9 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	}
 
 	log.Printf("method=%s path=%q", method, req.URL.Path)
-	switch method {
-	case "HEAD":
+
+	// inspect the ENV
+	if method == "GET" && strings.HasPrefix(req.Header.Get("X-Inspect"), "yes") {
 		handleInspect(res, req)
 		return
 	}
