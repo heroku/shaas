@@ -84,6 +84,11 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	}
 
 	log.Printf("method=%s path=%q", method, req.URL.Path)
+	switch method {
+	case "HEAD":
+		handleInspect(res, req)
+		return
+	}
 
 	// file non-requiring methods
 	switch method {
@@ -129,6 +134,14 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	}
 
 	http.Error(res, "Only GET, POST, PUT, APPEND supported", http.StatusMethodNotAllowed)
+}
+
+func handleInspect(res http.ResponseWriter, req *http.Request) {
+	if strings.Contains(req.Header.Get("Accept"), "html") {
+		renderInspectHTML(res)
+	} else {
+		renderInspectJSON(res)
+	}
 }
 
 func handleGet(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
@@ -252,6 +265,24 @@ func handleWrite(res http.ResponseWriter, req *http.Request, pathname string, ap
 		handleError(res, req, err, http.StatusInternalServerError, "Error writing to file")
 		return
 	}
+}
+
+func renderInspectHTML(res http.ResponseWriter) {
+	res.Header().Set("Content-Type", "text/html")
+	fmt.Fprintf(res, "<pre><ul>")
+	for _, kv := range os.Environ() {
+		fmt.Fprintf(res, "<li>%s</li>", html.EscapeString(kv))
+	}
+	fmt.Fprintf(res, "</ul></pre>")
+}
+
+func renderInspectJSON(res http.ResponseWriter) {
+	res.Header().Set("Content-Type", "application/json")
+	inspectJSON, err := json.MarshalIndent(os.Environ(), "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprintln(res, string(inspectJSON))
 }
 
 func renderDirHTML(res http.ResponseWriter, pathName string, fileInfos []os.FileInfo) {
