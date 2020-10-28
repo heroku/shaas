@@ -15,9 +15,20 @@ import (
 	"time"
 )
 
-var enabled bool
-var skipSetup bool
-var env *TestingEnvironment
+const (
+	dockerComposeCmd  = "docker-compose"
+	dockerComposeFile = "ftest/docker-compose.yml"
+
+	ServiceDefault  = "default"
+	ServiceAuth     = "auth"
+	ServiceReadonly = "readonly"
+)
+
+var (
+	enabled   bool
+	skipSetup bool
+	env       *TestingEnvironment
+)
 
 func TestMain(m *testing.M) {
 	flag.BoolVar(&enabled, "ftest", false, "enable functional tests")
@@ -49,6 +60,13 @@ func TestMain(m *testing.M) {
 
 type TestingEnvironment struct {
 	projectRoot string
+	services    map[string]TestingEnvironmentService
+}
+
+type TestingEnvironmentService struct {
+	Port     int
+	Auth     string
+	Readonly bool
 }
 
 func New(skipCreate bool) (*TestingEnvironment, error) {
@@ -67,6 +85,19 @@ func New(skipCreate bool) (*TestingEnvironment, error) {
 	}
 	env := &TestingEnvironment{
 		projectRoot: path.Clean(filepath.Join(wd, "..")),
+		services: map[string]TestingEnvironmentService{
+			ServiceDefault: {
+				Port: 5000,
+			},
+			ServiceAuth: {
+				Port: 5001,
+				Auth: "user:pass",
+			},
+			ServiceReadonly: {
+				Port:     5002,
+				Readonly: true,
+			},
+		},
 	}
 	if skipCreate {
 		return env, nil
@@ -85,20 +116,25 @@ func (env *TestingEnvironment) create() error {
 		}
 	}
 
-	run(exec.Command("docker-compose", "stop"))
-	run(exec.Command("docker-compose", "build"))
-	run(exec.Command("docker-compose", "up", "-d"))
-	run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), "shaas_shaas_1:ftest"))
+	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "stop"))
+	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "build"))
+	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "up", "-d"))
 
-	log.Print("Waiting for server...")
-	var err error
-	for i := 0; i < 5; i++ {
-		if _, err = http.Get(env.baseUrl()); err == nil {
-			return nil
+	for svcName, svc := range env.services {
+		run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), fmt.Sprintf("ftest_shaas.%s_1:ftest", svcName)))
+
+		log.Print("Waiting for server...")
+		var err error
+		for i := 0; i < 5; i++ {
+			if _, err = http.Get(env.baseUrl(svc)); err == nil {
+				return nil
+			}
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
+		return fmt.Errorf("Server not responding: %s: \n%s", env.baseUrl(svc), err.Error())
 	}
-	return fmt.Errorf("Server not responding: %s: \n%s", env.baseUrl(), err.Error())
+
+	return nil
 }
 
 func (env *TestingEnvironment) destroy() error {
@@ -109,20 +145,19 @@ func (env *TestingEnvironment) destroy() error {
 	return stop.Run()
 }
 
-func (env *TestingEnvironment) baseUrl() string {
-	b2dUrlStr := os.Getenv("DOCKER_HOST")
-	if b2dUrlStr == "" {
-		return "http://localhost:5000"
+func (env *TestingEnvironment) baseUrl(svc TestingEnvironmentService) string {
+	host := "localhost"
+	if b2dUrlStr, ok := os.LookupEnv("DOCKER_HOST"); ok {
+		b2dUrl, err := url.Parse(b2dUrlStr)
+		if err != nil {
+			panic(err)
+		}
+		host = strings.SplitAfter(b2dUrl.Host, ":")[0]
 	}
 
-	b2dUrl, err := url.Parse(b2dUrlStr)
-	if err != nil {
-		panic(err)
-	}
-
-	return "http://" + strings.SplitAfter(b2dUrl.Host, ":")[0] + "5000"
+	return fmt.Sprintf("http://%s:%d", host, svc.Port)
 }
 
-func (env *TestingEnvironment) fixturesUrl() string {
-	return env.baseUrl() + "/ftest/fixtures"
+func (env *TestingEnvironment) fixturesUrl(svc TestingEnvironmentService) string {
+	return env.baseUrl(svc) + "/ftest/fixtures"
 }

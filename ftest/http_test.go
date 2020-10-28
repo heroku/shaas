@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetFile(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl() + "/a")
+	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]) + "/a")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -23,13 +23,13 @@ func TestGetFile(t *testing.T) {
 }
 
 func TestGetFile_NotFound(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl() + "/b")
+	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]) + "/b")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestGetDir(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl())
+	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -46,7 +46,7 @@ func TestGetDir(t *testing.T) {
 }
 
 func TestPostFile(t *testing.T) {
-	res, err := http.Post(env.baseUrl()+"/usr/bin/factor", "", strings.NewReader("42"))
+	res, err := http.Post(env.baseUrl(env.services[ServiceDefault])+"/usr/bin/factor", "", strings.NewReader("42"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -56,17 +56,17 @@ func TestPostFile(t *testing.T) {
 }
 
 func TestPostFile_NotFound(t *testing.T) {
-	res, err := http.Post(env.fixturesUrl()+"/b", "", strings.NewReader(""))
+	res, err := http.Post(env.fixturesUrl(env.services[ServiceDefault])+"/b", "", strings.NewReader(""))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestPostDir(t *testing.T) {
-	res, err := http.Post(env.fixturesUrl(), "", strings.NewReader("pwd"))
+	res, err := http.Post(env.fixturesUrl(env.services[ServiceDefault]), "", strings.NewReader("pwd"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	body, err := ioutil.ReadAll(res.Body)
 	assert.Nil(t, err)
-	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl(), env.baseUrl())+"\n", string(body))
+	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl(env.services[ServiceDefault]), env.baseUrl(env.services[ServiceDefault]))+"\n", string(body))
 }
