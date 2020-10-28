@@ -27,17 +27,23 @@ var (
 )
 
 func main() {
-	basicAuth := os.Getenv("BASIC_AUTH")
-	if basicAuth != "" {
+	if basicAuth := os.Getenv("BASIC_AUTH"); basicAuth != "" {
 		requireBasicAuth = true
 		bits := strings.SplitN(basicAuth, ":", 2)
 		authUser = bits[0]
 		if len(bits) == 2 {
 			authPassword = bits[1]
 		}
+		log.Println("at=basic-auth.enabled")
+	} else {
+		log.Println("at=basic-auth.disabled")
 	}
 
-	_, readonly = os.LookupEnv("READONLY")
+	if _, readonly = os.LookupEnv("READ_ONLY"); readonly {
+		log.Println("at=readonly.enabled")
+	} else {
+		log.Println("at=readonly.disabled")
+	}
 
 	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
@@ -91,7 +97,7 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	log.Printf("method=%s path=%q", method, req.URL.Path)
 
 	if readonly && method != "GET" {
-		log.Println("at=method-authorization.forbidden reason=readonly")
+		log.Printf("at=readonly.forbidden.%s", strings.ToLower(method))
 		http.Error(res, "Only GET supported", http.StatusMethodNotAllowed)
 		return
 	}
@@ -190,7 +196,7 @@ func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInf
 		Handler: handler,
 		Handshake: func(config *websocket.Config, request *http.Request) error {
 			if readonly {
-				log.Println("at=ws.handshake.forbidden reason=readonly")
+				log.Println("at=readonly.forbidden.ws")
 				return fmt.Errorf("read only")
 			}
 			return nil
