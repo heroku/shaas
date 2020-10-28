@@ -20,8 +20,11 @@ import (
 	"github.com/heroku/shaas/pkg"
 )
 
-var authUser, authPassword string
-var requireBasicAuth bool
+var (
+	authUser, authPassword string
+	requireBasicAuth       bool
+	readonly               bool
+)
 
 func main() {
 	basicAuth := os.Getenv("BASIC_AUTH")
@@ -33,6 +36,8 @@ func main() {
 			authPassword = bits[1]
 		}
 	}
+
+	_, readonly = os.LookupEnv("READONLY")
 
 	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
@@ -84,6 +89,12 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	}
 
 	log.Printf("method=%s path=%q", method, req.URL.Path)
+
+	if readonly && method != "GET" {
+		log.Println("at=method-authorization.forbidden reason=readonly")
+		http.Error(res, "Only GET supported", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// file non-requiring methods
 	switch method {
