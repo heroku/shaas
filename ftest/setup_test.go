@@ -88,6 +88,7 @@ func (env *TestingEnvironment) create() error {
 	run(exec.Command("docker-compose", "stop"))
 	run(exec.Command("docker-compose", "build"))
 	run(exec.Command("docker-compose", "up", "-d"))
+	run(exec.Command("docker", "ps"))
 	run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), "shaas_shaas_1:ftest"))
 
 	log.Print("Waiting for server...")
