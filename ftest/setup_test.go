@@ -146,6 +146,11 @@ func (env *TestingEnvironment) destroy() error {
 }
 
 func (env *TestingEnvironment) baseUrl(svc TestingEnvironmentService) string {
+	auth := ""
+	if svc.Auth != "" {
+		auth = fmt.Sprintf("%s@", svc.Auth)
+	}
+
 	host := "localhost"
 	if b2dUrlStr, ok := os.LookupEnv("DOCKER_HOST"); ok {
 		b2dUrl, err := url.Parse(b2dUrlStr)
@@ -155,7 +160,7 @@ func (env *TestingEnvironment) baseUrl(svc TestingEnvironmentService) string {
 		host = strings.SplitAfter(b2dUrl.Host, ":")[0]
 	}
 
-	return fmt.Sprintf("http://%s:%d", host, svc.Port)
+	return fmt.Sprintf("http://%s%s:%d", auth, host, svc.Port)
 }
 
 func (env *TestingEnvironment) fixturesUrl(svc TestingEnvironmentService) string {
