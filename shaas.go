@@ -124,7 +124,7 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(req.Header.Get("Origin"), "ws://") { // TODO: how to detect? scheme is null
+	if req.Header.Get("Upgrade") == "websocket" {
 		handleWs(res, req, path, pathInfo)
 		return
 	}
@@ -186,7 +186,16 @@ func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInf
 		execCmd(res, req, path, pathInfo, ws, ws, true)
 	}
 
-	websocket.Handler(handler).ServeHTTP(res, req)
+	websocket.Server{
+		Handler: handler,
+		Handshake: func(config *websocket.Config, request *http.Request) error {
+			if readonly {
+				log.Println("at=ws.handshake.forbidden reason=readonly")
+				return fmt.Errorf("read only")
+			}
+			return nil
+		},
+	}.ServeHTTP(res, req)
 }
 
 func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo, in io.Reader, out io.Writer, interactive bool) {
