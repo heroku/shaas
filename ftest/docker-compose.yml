@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+  shaas.default:
+    build:
+      context: ..
+    ports:
+      - "5000:5000"
+  shaas.auth:
+    build:
+      context: ..
+    ports:
+      - "5001:5000"
+    environment:
+      - BASIC_AUTH=user:pass
+  shaas.readonly:
+    build:
+      context: ..
+    ports:
+      - "5002:5000"
+    environment:
+      - READ_ONLY=1

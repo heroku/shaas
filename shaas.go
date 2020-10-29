@@ -20,18 +20,29 @@ import (
 	"github.com/heroku/shaas/pkg"
 )
 
-var authUser, authPassword string
-var requireBasicAuth bool
+var (
+	authUser, authPassword string
+	requireBasicAuth       bool
+	readonly               bool
+)
 
 func main() {
-	basicAuth := os.Getenv("BASIC_AUTH")
-	if basicAuth != "" {
+	if basicAuth := os.Getenv("BASIC_AUTH"); basicAuth != "" {
 		requireBasicAuth = true
 		bits := strings.SplitN(basicAuth, ":", 2)
 		authUser = bits[0]
 		if len(bits) == 2 {
 			authPassword = bits[1]
 		}
+		log.Println("at=basic-auth.enabled")
+	} else {
+		log.Println("at=basic-auth.disabled")
+	}
+
+	if _, readonly = os.LookupEnv("READ_ONLY"); readonly {
+		log.Println("at=readonly.enabled")
+	} else {
+		log.Println("at=readonly.disabled")
 	}
 
 	http.HandleFunc("/>/exit", authorize(handleExit))
@@ -85,6 +96,12 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 
 	log.Printf("method=%s path=%q", method, req.URL.Path)
 
+	if readonly && method != "GET" {
+		log.Printf("at=readonly.forbidden.%s", strings.ToLower(method))
+		http.Error(res, "Only GET supported", http.StatusMethodNotAllowed)
+		return
+	}
+
 	// file non-requiring methods
 	switch method {
 	case "PUT":
@@ -113,7 +130,7 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(req.Header.Get("Origin"), "ws://") { // TODO: how to detect? scheme is null
+	if req.Header.Get("Upgrade") == "websocket" {
 		handleWs(res, req, path, pathInfo)
 		return
 	}
@@ -175,7 +192,16 @@ func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInf
 		execCmd(res, req, path, pathInfo, ws, ws, true)
 	}
 
-	websocket.Handler(handler).ServeHTTP(res, req)
+	websocket.Server{
+		Handler: handler,
+		Handshake: func(config *websocket.Config, request *http.Request) error {
+			if readonly {
+				log.Println("at=readonly.forbidden.ws")
+				return fmt.Errorf("read only")
+			}
+			return nil
+		},
+	}.ServeHTTP(res, req)
 }
 
 func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo, in io.Reader, out io.Writer, interactive bool) {

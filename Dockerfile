@@ -17,6 +17,7 @@ WORKDIR /app
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /go/bin/shaas .
+COPY --from=builder /go/src/github.com/heroku/shaas/bin/pseudo-interactive-bash /app/bin/pseudo-interactive-bash
 
 EXPOSE 5000
 
