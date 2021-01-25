@@ -4,8 +4,6 @@ jobs:
     docker:
       - image: circleci/golang:1.15
 
-    parallelism: 2
-
     environment:
       TEST_RESULTS: /tmp/test-results # path to where test results will be saved
 
