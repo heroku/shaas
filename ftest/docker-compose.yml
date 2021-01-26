@@ -1,20 +1,25 @@
 version: "3.8"
+
+x-custom:
+  &shaas-base
+  build:
+    context: ..
+  volumes:
+    - ./fixtures:/ftest/fixtures:ro
+
 services:
   shaas.default:
-    build:
-      context: ..
+    << : *shaas-base
     ports:
       - "5000:5000"
   shaas.auth:
-    build:
-      context: ..
+    << : *shaas-base
     ports:
       - "5001:5000"
     environment:
       - BASIC_AUTH=user:pass
   shaas.readonly:
-    build:
-      context: ..
+    << : *shaas-base
     ports:
       - "5002:5000"
     environment:
