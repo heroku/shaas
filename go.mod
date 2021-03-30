@@ -1,8 +1,8 @@
 module github.com/heroku/shaas
 
-go 1.15
+go 1.16
 
-// +heroku goVersion go1.15
+// +heroku goVersion go1.16
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
