@@ -3,7 +3,7 @@ FROM golang as builder
 WORKDIR $GOPATH/src/github.com/heroku/shaas
 ADD . $GOPATH/src/github.com/heroku/shaas
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-RUN go install
+RUN go install -mod=vendor
 
 FROM ubuntu
 
