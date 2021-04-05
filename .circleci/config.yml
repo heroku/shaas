@@ -55,4 +55,8 @@ workflows:
   build-workflow:
     jobs:
       - test
-      - build-and-push-docker
+      - build-and-push-docker:
+          filters:
+            branches:
+              only:
+                - master # for security: scope build-and-push-docker job to just the master branch
