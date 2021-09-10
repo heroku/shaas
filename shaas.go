@@ -46,8 +46,8 @@ func main() {
 		log.Println("at=readonly.disabled")
 	}
 
-	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/health", handleHealth)
+	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
 
 	for _, p := range httpPorts() {
@@ -109,7 +109,7 @@ func handleHealth(res http.ResponseWriter, req *http.Request) {
 	time.Sleep(time.Duration(delayMilliSecs) * time.Millisecond)
 
 	res.WriteHeader(responseCode)
-	res.Write([]byte("OK"))
+	res.Write([]byte("OK\n"))
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
