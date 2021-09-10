@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/websocket"
 
@@ -46,6 +47,7 @@ func main() {
 	}
 
 	http.HandleFunc("/>/exit", authorize(handleExit))
+	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/", authorize(handleAny))
 
 	for _, p := range httpPorts() {
@@ -86,6 +88,28 @@ func handleExit(res http.ResponseWriter, req *http.Request) {
 	log.Printf("exit code=%d", code)
 
 	os.Exit(code)
+}
+
+func handleHealth(res http.ResponseWriter, req *http.Request) {
+	responseCode := 200
+	var err error
+	if c := req.URL.Query().Get("responseCode"); c != "" {
+		if responseCode, err = strconv.Atoi(c); err != nil {
+			responseCode = 200
+		}
+	}
+
+	delayMilliSecs := 10
+	if delay := req.URL.Query().Get("delay"); delay != "" {
+		if delayMilliSecs, err = strconv.Atoi(delay); err != nil {
+			delayMilliSecs = 10
+		}
+	}
+
+	time.Sleep(time.Duration(delayMilliSecs) * time.Millisecond)
+
+	res.WriteHeader(responseCode)
+	res.Write([]byte("OK"))
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
