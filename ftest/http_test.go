@@ -13,6 +13,23 @@ import (
 	"github.com/heroku/shaas/pkg"
 )
 
+func TestHealthEndpoint(t *testing.T) {
+	uri, err := url.Parse(env.baseUrl(env.services[ServiceAuth]) + "/health")
+	assert.Nil(t, err)
+	uri.User = nil
+
+	res, err := http.Get(uri.String())
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	q := uri.Query()
+	q.Add("responseCode", "204")
+	uri.RawQuery = q.Encode()
+	res, err = http.Get(uri.String())
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusNoContent, res.StatusCode)
+}
+
 func TestGetFile(t *testing.T) {
 	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]) + "/a")
 	assert.Nil(t, err)
