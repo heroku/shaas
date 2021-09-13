@@ -27,6 +27,11 @@ var (
 	readonly               bool
 )
 
+const (
+	defaultResponseStatusCode = 200
+	defaultResponseDelay      = 0
+)
+
 func main() {
 	if basicAuth := os.Getenv("BASIC_AUTH"); basicAuth != "" {
 		requireBasicAuth = true
@@ -91,24 +96,12 @@ func handleExit(res http.ResponseWriter, req *http.Request) {
 }
 
 func handleHealth(res http.ResponseWriter, req *http.Request) {
-	responseCode := 200
-	var err error
-	if c := req.URL.Query().Get("responseCode"); c != "" {
-		if responseCode, err = strconv.Atoi(c); err != nil {
-			responseCode = 200
-		}
-	}
-
-	delayMilliSecs := 10
-	if delay := req.URL.Query().Get("delay"); delay != "" {
-		if delayMilliSecs, err = strconv.Atoi(delay); err != nil {
-			delayMilliSecs = 10
-		}
-	}
+	status := parseInt(req.URL.Query().Get("status"), defaultResponseStatusCode)
+	delayMilliSecs := parseInt(req.URL.Query().Get("delay"), defaultResponseDelay)
 
 	time.Sleep(time.Duration(delayMilliSecs) * time.Millisecond)
 
-	res.WriteHeader(responseCode)
+	res.WriteHeader(status)
 	res.Write([]byte("OK\n"))
 }
 
@@ -466,4 +459,15 @@ func upperCaseAndUnderscore(r rune) rune {
 	}
 	// TODO: other transformations in spec or practice?
 	return r
+}
+
+func parseInt(s string, d int) int {
+	if s == "" {
+		return d
+	}
+
+	if parsed, err := strconv.Atoi(s); err == nil {
+		return parsed
+	}
+	return d
 }

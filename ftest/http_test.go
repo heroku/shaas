@@ -23,7 +23,7 @@ func TestHealthEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	q := uri.Query()
-	q.Add("responseCode", "204")
+	q.Add("status", "204")
 	uri.RawQuery = q.Encode()
 	res, err = http.Get(uri.String())
 	assert.Nil(t, err)
