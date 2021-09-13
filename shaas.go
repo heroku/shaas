@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/websocket"
 
@@ -24,6 +25,11 @@ var (
 	authUser, authPassword string
 	requireBasicAuth       bool
 	readonly               bool
+)
+
+const (
+	defaultResponseStatusCode = 200
+	defaultResponseDelay      = 0
 )
 
 func main() {
@@ -45,6 +51,7 @@ func main() {
 		log.Println("at=readonly.disabled")
 	}
 
+	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
 
@@ -86,6 +93,16 @@ func handleExit(res http.ResponseWriter, req *http.Request) {
 	log.Printf("exit code=%d", code)
 
 	os.Exit(code)
+}
+
+func handleHealth(res http.ResponseWriter, req *http.Request) {
+	status := parseInt(req.URL.Query().Get("status"), defaultResponseStatusCode)
+	delayMilliSecs := parseInt(req.URL.Query().Get("delay"), defaultResponseDelay)
+
+	time.Sleep(time.Duration(delayMilliSecs) * time.Millisecond)
+
+	res.WriteHeader(status)
+	res.Write([]byte("OK\n"))
 }
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
@@ -442,4 +459,15 @@ func upperCaseAndUnderscore(r rune) rune {
 	}
 	// TODO: other transformations in spec or practice?
 	return r
+}
+
+func parseInt(s string, d int) int {
+	if s == "" {
+		return d
+	}
+
+	if parsed, err := strconv.Atoi(s); err == nil {
+		return parsed
+	}
+	return d
 }
