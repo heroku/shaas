@@ -1,0 +1,23 @@
+name: ci
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          cache: true
+      - name: Test
+        run: go test -v ./...
+      
+  docker-build-push:
+    runs-on: ubuntu-latest
+    # TODO: master can be removed once cut over to `main` branch as default
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          cache: true
