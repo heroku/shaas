@@ -10,8 +10,8 @@ RUN go install -mod=vendor
 FROM ubuntu
 
 RUN apt-get update && apt-get install -y bash && apt-get install -y curl lsof traceroute iproute2 iputils-ping dnsutils
-RUN groupadd -g 1000 app
-RUN useradd -s /bin/bash -u 1000 -g 1000 -d /app app
+RUN groupadd -g 1001 app
+RUN useradd -s /bin/bash -u 1001 -g 1001 -d /app app
 RUN mkdir -p /app && chown app:app /app
 
 USER app
