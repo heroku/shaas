@@ -1,8 +1,10 @@
 FROM golang as builder
 
+ARG ARCH="amd64"
+
 WORKDIR $GOPATH/src/github.com/heroku/shaas
 ADD . $GOPATH/src/github.com/heroku/shaas
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH}
 RUN go install -mod=vendor
 
 FROM ubuntu
