@@ -21,7 +21,7 @@ jobs:
           TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
           echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
 
-          IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GIT_SHA}
+          IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GITHUB_SHA}
 
           IFS=',' read -ra SUPPORTED_ARCHS <<< "$ARCHITECTURES"
           ARCH_SPECIFIC_IMAGES=()
