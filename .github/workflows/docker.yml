@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: [pub-hk-ubuntu-22.04-small]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: build and push image
