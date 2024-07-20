@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # support multi-arch builds
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - name: build and push image
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
@@ -32,18 +35,10 @@ jobs:
             PLATFORM=linux/$ARCH
 
             echo "building architecture-specific image"
-            docker build --tag $ARCH -f Dockerfile . --platform=$PLATFORM --build-arg ARCH=$ARCH
-            docker tag $ARCH $IMAGE_NAME_TAG_ARCH
-
-            echo "pushing architecture-specific image"
-            docker push $IMAGE_NAME_TAG_ARCH
+            docker buildx build --tag $IMAGE_NAME_TAG_ARCH -f Dockerfile . --platform=$PLATFORM --build-arg ARCH=$ARCH --push
 
             ARCH_SPECIFIC_IMAGES+=( $IMAGE_NAME_TAG_ARCH )
           done
 
           echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
-
-          echo "pushing manifest"
-          docker manifest push $IMAGE_NAME_TAG_BASE
-
+          docker buildx imagetools create -t $IMAGE_NAME_TAG_BASE "${ARCH_SPECIFIC_IMAGES[@]}"
