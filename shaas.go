@@ -1,7 +1,10 @@
+// shaas.go
+
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html"
 	"io"
@@ -25,6 +28,9 @@ var (
 	authUser, authPassword string
 	requireBasicAuth       bool
 	readonly               bool
+	portFlag               string
+	basicAuthFlag          string
+	readonlyFlag           bool
 )
 
 const (
@@ -33,7 +39,22 @@ const (
 )
 
 func main() {
-	if basicAuth := os.Getenv("BASIC_AUTH"); basicAuth != "" {
+	// Define and parse the command-line flags
+	flag.StringVar(&portFlag, "port", "", "Specify the primary HTTP port (overrides PORT environment variable)")
+	flag.StringVar(&basicAuthFlag, "basic-auth", "", "Enable basic auth in the format username:password (overrides BASIC_AUTH environment variable)")
+	flag.BoolVar(&readonlyFlag, "readonly", false, "Enable read-only mode (overrides READ_ONLY environment variable)")
+	flag.Parse()
+
+	// Handle basic auth setup
+	if basicAuthFlag != "" {
+		requireBasicAuth = true
+		bits := strings.SplitN(basicAuthFlag, ":", 2)
+		authUser = bits[0]
+		if len(bits) == 2 {
+			authPassword = bits[1]
+		}
+		log.Println("at=basic-auth.enabled")
+	} else if basicAuth := os.Getenv("BASIC_AUTH"); basicAuth != "" {
 		requireBasicAuth = true
 		bits := strings.SplitN(basicAuth, ":", 2)
 		authUser = bits[0]
@@ -45,18 +66,26 @@ func main() {
 		log.Println("at=basic-auth.disabled")
 	}
 
-	if _, readonly = os.LookupEnv("READ_ONLY"); readonly {
+	// Handle read-only setup
+	if readonlyFlag {
+		readonly = true
 		log.Println("at=readonly.enabled")
+	} else if _, readonly = os.LookupEnv("READ_ONLY"); readonly {
+		log.Println("at=readonly.enabled via environment variable")
 	} else {
 		log.Println("at=readonly.disabled")
 	}
+
+	ports := httpPorts()
+    log.Printf("at=service.starting ports=%v", ports)
 
 	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/>/exit", authorize(handleExit))
 	http.HandleFunc("/", authorize(handleAny))
 
-	for _, p := range httpPorts() {
+	for _, p := range ports {
 		go func(addr string) {
+		    log.Printf("at=http-listen port=%s", addr)
 			log.Fatal(http.ListenAndServe(addr, nil))
 		}(":" + p)
 	}
@@ -375,10 +404,13 @@ func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
 }
 
 func primaryHTTPPort() string {
+	if portFlag != "" { // Check if the flag is set
+        return portFlag
+    }
 	if port := os.Getenv("PORT"); port != "" {
 		return port
 	}
-	return "5000"
+	return "7575" // Default port
 }
 
 // httpPorts returns a unique list of port numbers to listen
