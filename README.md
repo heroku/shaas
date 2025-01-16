@@ -10,6 +10,33 @@ API to inspect and execute scripts in a server's environment via HTTP and WebSoc
 
 Because this application gives clients full access to the server, it is highly recommended to run it inside of some kind of containerized environment, such as [Heroku](http://www.heroku.com) or [Docker](https://www.docker.com/). Even in a containerized environment, you may wish to set a username and password, for use via HTTP basic authentication, by setting `BASIC_AUTH=user:password` in the environment before starting. To only allow `GET` requests and disallow websockets, set `READ_ONLY` in the environment.
 
+### Build binary
+
+1. Clone the Repository:
+
+
+    $ git clone https://github.com/heroku/shaas.git
+    $ cd shaas
+
+
+2. Install Go: If you don't have Go installed, download and install it from https://go.dev/dl/. Set up your GOPATH and GOROOT environment variables.
+
+3. Resolve Dependencies:
+
+
+    $ go mod tidy
+    $ go mod vendor
+
+4. Build from source as binary
+
+
+    $ go build
+
+5. Run the binary:
+
+
+    $ ./shaas
+
 ### Heroku
 
 [![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/heroku/shaas)
