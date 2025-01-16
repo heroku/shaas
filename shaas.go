@@ -284,12 +284,29 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 		cmd.Env = append(cmd.Env, "PS1=\\[\\033[01;34m\\]\\w\\[\\033[00m\\] \\[\\033[01;32m\\]$ \\[\\033[00m\\]")
 	}
 	cmd.Stdin = in
-	cmd.Stdout = out
-	cmd.Stderr = out
-	if err := cmd.Run(); err != nil {
-		// error already sent to client. log only
+
+	// Capture command output
+	output := &strings.Builder{}
+	cmd.Stdout = output
+	cmd.Stderr = output
+
+	// Run the command
+	err := cmd.Run()
+
+	// Set Content-Type to plain text for all cases
+	res.Header().Set("Content-Type", "text/plain")
+
+	if err != nil {
+		// Log and return the error output with status 500
 		log.Printf("method=%s path=%q message=%q", req.Method, req.URL.Path, err)
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(output.String())) // Return the error output
+		return
 	}
+
+	// On success, return the command output with status 200
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(output.String()))
 }
 
 func handleWrite(res http.ResponseWriter, req *http.Request, pathname string, append bool) {
@@ -364,6 +381,22 @@ func toFileInfoDetails(fi os.FileInfo) pkg.FileInfoDetails {
 		Perm:    int(fi.Mode().Perm()),
 		ModTime: fi.ModTime(),
 	}
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rec *statusRecorder) WriteHeader(code int) {
+	if rec.status == http.StatusOK { // Only set status if it hasn't been set already
+		rec.status = code
+	}
+	rec.ResponseWriter.WriteHeader(code)
+}
+
+func (rec *statusRecorder) Write(p []byte) (int, error) {
+	return rec.ResponseWriter.Write(p)
 }
 
 type stdError struct {
