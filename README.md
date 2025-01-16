@@ -10,7 +10,51 @@ API to inspect and execute scripts in a server's environment via HTTP and WebSoc
 
 Because this application gives clients full access to the server, it is highly recommended to run it inside of some kind of containerized environment, such as [Heroku](http://www.heroku.com) or [Docker](https://www.docker.com/). Even in a containerized environment, you may wish to set a username and password, for use via HTTP basic authentication, by setting `BASIC_AUTH=user:password` in the environment before starting. To only allow `GET` requests and disallow websockets, set `READ_ONLY` in the environment.
 
-### Build binary
+    $ ./shaas
+    $ curl http://localhost:7575
+
+By default the shaas server listens on port 7575.
+
+### Shaas Options
+
+The main settings can be set via environment variables or as parameters to the `shaas` executable.
+
+| Environment Variable    | Purpose                                                                      | Example Value       | Default Value |
+|-------------------------|------------------------------------------------------------------------------|---------------------|---------------|
+| `PORT`                  | Specifies the primary HTTP port for the service.                             | `8080`              | `7575`        |
+| `ADDITIONAL_HTTP_PORTS` | Specifies additional ports the server should listen on, separated by commas. | `9090,9091`         | None          |
+| `BASIC_AUTH`            | Enables Basic Authentication. Format: `<username>:<password>`.               | `admin:password123` | Disabled      |
+| `READ_ONLY`             | Enables read-only mode, restricting HTTP methods to `GET`.                   | Any value to enable | Disabled      |
+
+Usage Examples for environment variables:
+
+To set these variables, use the command line
+```bash
+export PORT=8080
+export ADDITIONAL_HTTP_PORTS=9090,9091
+export BASIC_AUTH=admin:password123
+export READ_ONLY=true
+```
+
+or individual as environment variables:
+
+    $ PORT=6666 ./shaas
+
+The following parameters are supported:
+
+| Parameters Variable | Purpose                                                        | Example Value                    | Default Value |
+|---------------------|----------------------------------------------------------------|----------------------------------|---------------|
+| `port`              | Specifies the primary HTTP port for the service.               | `--port 8080`                    | `7575`        |
+| `basic-auth`        | Enables Basic Authentication. Format: `<username>:<password>`. | `--basic-auth admin:password123` | Disabled      |
+| `readonly`          | Enables read-only mode, restricting HTTP methods to `GET`.     | `--readonly`                     | Disabled      |
+| `help`              | Prints shaas parameters and information.                       | `--help`                         |               |
+
+
+Usage Examples for parameters:
+
+    $ ./shaas --port 6666
+
+### Build Shaas binary
 
 1. Clone the Repository:
 
@@ -36,6 +80,9 @@ Because this application gives clients full access to the server, it is highly r
 
 
     $ ./shaas
+    $ curl http://localhost:7575/
+
+By default the shaas server listens on port 7575.
 
 ### Heroku
 
@@ -46,7 +93,7 @@ Because this application gives clients full access to the server, it is highly r
 Running with [Docker Compose](https://docs.docker.com/compose):
 
     $ docker-compose up -d
-    $ curl http://localhost:5000/
+    $ curl http://localhost:7575/
 
 ## Usage
 
@@ -61,7 +108,7 @@ Summary of endpoint behavior for all path, method, and protocol combinations:
 
 To execute a command in the context of a given directory on the server, simply `POST` the command with the directory as the URL path. For example, running `pwd` in the directory `/usr/bin` returns the path in the response:
 
-    $ curl http://shaas.example.com/usr/bin -i -X POST -d 'pwd'
+    $ curl http://localhost:7575/usr/bin -i -X POST -d 'pwd'
     HTTP/1.1 200 OK
     Date: Tue, 21 Apr 2015 17:22:07 GMT
     Content-Type: text/plain; charset=utf-8
@@ -75,7 +122,7 @@ This is the most versatile endpoint. The functionality of all the other endpoint
 
 To execute a script on the server, simply `POST` the script path as the URL path and any input to the script in the body. For example, to find the factors of the number 24:
 
-    $ curl http://shaas.example.com/usr/bin/factor -i -X POST -d '24'
+    $ curl http://localhost:7575/usr/bin/factor -i -X POST -d '24'
     HTTP/1.1 200 OK
     Server: Cowboy
     Connection: keep-alive
@@ -88,7 +135,7 @@ To execute a script on the server, simply `POST` the script path as the URL path
     
 Because `/usr/bin` is on the `PATH`, this could also be run with just the command in the body:
 
-    $ curl http://shaas.example.com/ -i -X POST -d 'factor 24'
+    $ curl http://localhost:7575/ -i -X POST -d 'factor 24'
     HTTP/1.1 200 OK
     Server: Cowboy
     Connection: keep-alive
@@ -99,11 +146,18 @@ Because `/usr/bin` is on the `PATH`, this could also be run with just the comman
     
     24: 2 2 2 3
 
+### Health Check
+
+To check the health of the server, run the `health` command:
+
+    $ curl http://localhost:7575/health
+    {"status":"ok"}
+
 ### CGI Environment Variables
 
 All commands and scripts are automatically run with [CGI](http://en.wikipedia.org/wiki/Common_Gateway_Interface) environment variables for access to HTTP headers, query parameters, and other metadata:
     
-    $ curl http://shaas.example.com/ -X POST -d 'env | sort'
+    $ curl http://localhost:7575/ -X POST -d 'env | sort'
     CONTENT_LENGTH=10
     CONTENT_TYPE=application/x-www-form-urlencoded
     GATEWAY_INTERFACE=CGI/1.1
@@ -141,7 +195,7 @@ All commands and scripts are automatically run with [CGI](http://en.wikipedia.or
 
 By accessing the endpoints above via WebSockets, the commands are run interactively. If the path is a directory, an interactive `bash` session is started in that directory. If the path is a script, it is run in an interactive session. For example, using the [wssh](https://github.com/progrium/wssh) client:
 
-    $ wssh ws://shaas.example.com/
+    $ wssh ws://localhost:7575/
     / $ echo 'hello'
     echo 'hello'
     hello
@@ -151,7 +205,7 @@ By accessing the endpoints above via WebSockets, the commands are run interactiv
 Directories are listed in JSON format for easy parsing:
 
 
-    $ curl http://shaas.example.com/usr -i -X GET
+    $ curl http://localhost:7575/usr -i -X GET
     HTTP/1.1 200 OK
     Server: Cowboy
     Connection: keep-alive
@@ -177,7 +231,7 @@ Directories are listed in JSON format for easy parsing:
 
 If viewing the directory in a browser (or any client with a `html` in the `Accept` header), the listing will be returned in HTML:
 
-    $ curl http://shaas.example.com/usr -i -X GET -H 'Accept: text/html'
+    $ curl http://localhost:7575/usr -i -X GET -H 'Accept: text/html'
     HTTP/1.1 200 OK
     Content-Type: text/html
     Date: Tue, 21 Apr 2015 17:46:58 GMT
@@ -190,7 +244,7 @@ If viewing the directory in a browser (or any client with a `html` in the `Accep
 
 To list a directory in plain text, use POST with the `ls` command and options of your choice:
 
-    $ curl http://shaas.example.com/usr -i -X POST -d 'ls -lA'
+    $ curl http://localhost:7575/usr -i -X POST -d 'ls -lA'
       HTTP/1.1 200 OK
       Server: Cowboy
       Connection: keep-alive
@@ -207,7 +261,7 @@ To list a directory in plain text, use POST with the `ls` command and options of
 
 Files are returned in their native format:
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X GET
+    $ curl http://localhost:7575/var/logs/server.log -i -X GET
     HTTP/1.1 200 OK
     Date: Tue, 21 Apr 2015 17:31:45 GMT
     Content-Type: plain/text
@@ -218,13 +272,13 @@ Files are returned in their native format:
 
 `PUT` creates or replaces a file with the request body:
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X PUT --data-binary 'hello 1'
+    $ curl http://localhost:7575/var/logs/server.log -i -X PUT --data-binary 'hello 1'
     HTTP/1.1 200 OK
     Date: Tue, 28 Mar 2017 09:13:05 GMT
     Content-Length: 0
     Content-Type: text/plain; charset=utf-8
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X PUT --data-binary 'hello 2'
+    $ curl http://localhost:7575/var/logs/server.log -i -X PUT --data-binary 'hello 2'
     HTTP/1.1 200 OK
     Date: Tue, 28 Mar 2017 09:13:05 GMT
     Content-Length: 0
@@ -240,13 +294,13 @@ Files are returned in their native format:
 
 `APPEND` creates or appends a file with the request body:
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
+    $ curl http://localhost:7575/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
     HTTP/1.1 200 OK
     Date: Tue, 28 Mar 2017 09:13:05 GMT
     Content-Length: 0
     Content-Type: text/plain; charset=utf-8
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 2'
+    $ curl http://localhost:7575/var/logs/server.log -i -X APPEND --data-binary 'hello 2'
     HTTP/1.1 200 OK
     Date: Tue, 28 Mar 2017 09:13:05 GMT
     Content-Length: 0
@@ -264,9 +318,9 @@ Files are returned in their native format:
 
 Because not all clients support all HTTP methods, particularly `PUT` and the custom `APPEND` method, the method can alternatively be overridden with the `_method` query parameter alongd with the `POST` method. For example, the following are equivalent:
 
-    $ curl http://shaas.example.com/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
+    $ curl http://localhost:7575/var/logs/server.log -i -X APPEND --data-binary 'hello 1'
 
-    $ curl http://shaas.example.com/var/logs/server.log?_method=APPEND -i -X POST --data-binary 'hello 1'
+    $ curl http://localhost:7575/var/logs/server.log?_method=APPEND -i -X POST --data-binary 'hello 1'
 
 ## Testing
 
