@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	defer env.Shutdown()
 
 	// Wait for services to initialize
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Run tests
 	status := m.Run()
@@ -145,5 +145,10 @@ func (env *TestingEnvironment) baseUrl(service string) string {
 }
 
 func (env *TestingEnvironment) fixturesUrl(service string) string {
-	return env.baseUrl(service) + "./ftest/fixtures"
+	pwd, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get current working directory: %v", err))
+	}
+
+	return env.baseUrl(service) + pwd + "/fixtures"
 }

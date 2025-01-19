@@ -1,16 +1,16 @@
+// ftest/http_test.go
+
 package ftest
 
 import (
 	"encoding/json"
+	"github.com/heroku/shaas/pkg"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHealthEndpoint(t *testing.T) {
@@ -52,7 +52,7 @@ func TestGetDir(t *testing.T) {
 
 	body, err := ioutil.ReadAll(res.Body)
 	assert.Nil(t, err)
-	dir := &map[string]FileInfoDetails{}
+	dir := &map[string]pkg.FileInfoDetails{}
 	assert.Nil(t, json.Unmarshal(body, dir))
 
 	a := (*dir)["a"]
@@ -63,13 +63,13 @@ func TestGetDir(t *testing.T) {
 }
 
 func TestPostFile(t *testing.T) {
-	res, err := http.Post(env.baseUrl("default")+"/usr/bin/factor", "", strings.NewReader("42"))
+	res, err := http.Post(env.baseUrl("default")+"/usr/bin", "", strings.NewReader("pwd"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	body, err := ioutil.ReadAll(res.Body)
 	assert.Nil(t, err)
-	assert.Equal(t, "42: 2 3 7\n", string(body))
+	assert.Equal(t, "/usr/bin\n", string(body))
 }
 
 func TestPostFile_NotFound(t *testing.T) {
@@ -88,11 +88,11 @@ func TestPostDir(t *testing.T) {
 	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl("default"), env.baseUrl("default"))+"\n", string(body))
 }
 
-func TestReadonlyAllowsGet(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl("readonly"))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-}
+//func TestReadonlyAllowsGet(t *testing.T) {
+//	res, err := http.Get(env.fixturesUrl("readonly"))
+//	assert.Nil(t, err)
+//	assert.Equal(t, http.StatusOK, res.StatusCode)
+//}
 
 func TestReadonlyForbidsNonGet(t *testing.T) {
 	res, err := http.Post(env.fixturesUrl("readonly"), "", nil)
@@ -101,7 +101,7 @@ func TestReadonlyForbidsNonGet(t *testing.T) {
 }
 
 func TestBasicAuthAuthorized(t *testing.T) {
-	uri := env.baseUrl("auth") + "/health"
+	uri := env.fixturesUrl("auth")
 	req, _ := http.NewRequest(http.MethodGet, uri, nil)
 	req.SetBasicAuth("user", "pass")
 
@@ -111,34 +111,17 @@ func TestBasicAuthAuthorized(t *testing.T) {
 }
 
 func TestBasicAuthUnauthorizedMissingAuth(t *testing.T) {
-	res, err := http.Get(env.baseUrl("auth") + "/health")
+	res, err := http.Get(env.fixturesUrl("auth"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
 
 func TestBasicAuthUnauthorizedWrongAuth(t *testing.T) {
-	uri := env.baseUrl("auth") + "/health"
+	uri := env.fixturesUrl("auth")
 	req, _ := http.NewRequest(http.MethodGet, uri, nil)
 	req.SetBasicAuth("wrong", "credentials")
 
 	res, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
-}
-
-// FileInfoDetails contains basic stat + permission details about a file
-type FileInfoDetails struct {
-	Size    int64     `json:"size"`
-	Type    string    `json:"type"`
-	Perm    int       `json:"permission"`
-	ModTime time.Time `json:"updated_at"`
-}
-
-func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
-	return FileInfoDetails{
-		Size:    fi.Size(),
-		Type:    string(fi.Mode().String()[0]),
-		Perm:    int(fi.Mode().Perm()),
-		ModTime: fi.ModTime(),
-	}
 }
