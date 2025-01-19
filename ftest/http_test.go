@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"github.com/heroku/shaas/pkg"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,7 +34,9 @@ func TestGetFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	body, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
 	assert.Nil(t, err)
 	assert.Equal(t, "A\n", string(body))
 }
@@ -50,7 +52,9 @@ func TestGetDir(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	body, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
 	assert.Nil(t, err)
 	dir := &map[string]pkg.FileInfoDetails{}
 	assert.Nil(t, json.Unmarshal(body, dir))
@@ -67,7 +71,9 @@ func TestPostFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	body, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
 	assert.Nil(t, err)
 	assert.Equal(t, "/usr/bin\n", string(body))
 }
@@ -83,16 +89,18 @@ func TestPostDir(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	body, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
 	assert.Nil(t, err)
 	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl("default"), env.baseUrl("default"))+"\n", string(body))
 }
 
-//func TestReadonlyAllowsGet(t *testing.T) {
-//	res, err := http.Get(env.fixturesUrl("readonly"))
-//	assert.Nil(t, err)
-//	assert.Equal(t, http.StatusOK, res.StatusCode)
-//}
+func TestReadonlyAllowsGet(t *testing.T) {
+	res, err := http.Get(env.fixturesUrl("readonly"))
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
 
 func TestReadonlyForbidsNonGet(t *testing.T) {
 	res, err := http.Post(env.fixturesUrl("readonly"), "", nil)
