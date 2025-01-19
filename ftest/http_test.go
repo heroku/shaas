@@ -9,19 +9,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/heroku/shaas/pkg"
 )
 
 func TestHealthEndpoint(t *testing.T) {
-	uri, err := url.Parse(env.baseUrl(env.services[ServiceAuth]) + "/health")
-	assert.Nil(t, err)
-	uri.User = nil
-
-	res, err := http.Get(uri.String())
+	res, err := http.Get(env.baseUrl("auth") + "/health")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
+	// Test status=204
+	uri, err := url.Parse(env.baseUrl("auth") + "/health")
+	assert.Nil(t, err)
 	q := uri.Query()
 	q.Add("status", "204")
 	uri.RawQuery = q.Encode()
@@ -31,7 +28,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestGetFile(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]) + "/a")
+	res, err := http.Get(env.fixturesUrl("default") + "/a")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -41,13 +38,13 @@ func TestGetFile(t *testing.T) {
 }
 
 func TestGetFile_NotFound(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]) + "/b")
+	res, err := http.Get(env.fixturesUrl("default") + "/b")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestGetDir(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl(env.services[ServiceDefault]))
+	res, err := http.Get(env.fixturesUrl("default"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -64,7 +61,7 @@ func TestGetDir(t *testing.T) {
 }
 
 func TestPostFile(t *testing.T) {
-	res, err := http.Post(env.baseUrl(env.services[ServiceDefault])+"/usr/bin/factor", "", strings.NewReader("42"))
+	res, err := http.Post(env.baseUrl("default")+"/usr/bin/factor", "", strings.NewReader("42"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -74,59 +71,55 @@ func TestPostFile(t *testing.T) {
 }
 
 func TestPostFile_NotFound(t *testing.T) {
-	res, err := http.Post(env.fixturesUrl(env.services[ServiceDefault])+"/b", "", strings.NewReader(""))
+	res, err := http.Post(env.fixturesUrl("default")+"/b", "", strings.NewReader(""))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestPostDir(t *testing.T) {
-	res, err := http.Post(env.fixturesUrl(env.services[ServiceDefault]), "", strings.NewReader("pwd"))
+	res, err := http.Post(env.fixturesUrl("default"), "", strings.NewReader("pwd"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	body, err := ioutil.ReadAll(res.Body)
 	assert.Nil(t, err)
-	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl(env.services[ServiceDefault]), env.baseUrl(env.services[ServiceDefault]))+"\n", string(body))
+	assert.Equal(t, strings.TrimPrefix(env.fixturesUrl("default"), env.baseUrl("default"))+"\n", string(body))
 }
 
 func TestReadonlyAllowsGet(t *testing.T) {
-	res, err := http.Get(env.fixturesUrl(env.services[ServiceReadonly]))
+	res, err := http.Get(env.fixturesUrl("readonly"))
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func TestReadonlyForbidsNonGet(t *testing.T) {
-	res, err := http.Post(env.fixturesUrl(env.services[ServiceReadonly]), "", nil)
+	res, err := http.Post(env.fixturesUrl("readonly"), "", nil)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
 }
 
 func TestBasicAuthAuthorized(t *testing.T) {
-	uri, err := url.Parse(env.fixturesUrl(env.services[ServiceAuth]))
-	assert.Nil(t, err)
-	assert.NotNil(t, uri.User)
+	uri := env.baseUrl("auth") + "/health"
+	req, _ := http.NewRequest(http.MethodGet, uri, nil)
+	req.SetBasicAuth("user", "pass")
 
-	res, err := http.Get(uri.String())
+	res, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func TestBasicAuthUnauthorizedMissingAuth(t *testing.T) {
-	uri, err := url.Parse(env.fixturesUrl(env.services[ServiceAuth]))
-	assert.Nil(t, err)
-	uri.User = nil
-
-	res, err := http.Get(uri.String())
+	res, err := http.Get(env.baseUrl("auth") + "/health")
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
 
 func TestBasicAuthUnauthorizedWrongAuth(t *testing.T) {
-	uri, err := url.Parse(env.fixturesUrl(env.services[ServiceAuth]))
-	assert.Nil(t, err)
-	uri.User = url.UserPassword("not", "correct")
+	uri := env.baseUrl("auth") + "/health"
+	req, _ := http.NewRequest(http.MethodGet, uri, nil)
+	req.SetBasicAuth("wrong", "credentials")
 
-	res, err := http.Get(uri.String())
+	res, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }

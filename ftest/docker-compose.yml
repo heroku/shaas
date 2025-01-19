@@ -11,16 +11,16 @@ services:
   shaas.default:
     << : *shaas-base
     ports:
-      - "5000:5000"
+      - "7575:7575"
   shaas.auth:
     << : *shaas-base
     ports:
-      - "5001:5000"
+      - "5001:7575"
     environment:
       - BASIC_AUTH=user:pass
   shaas.readonly:
     << : *shaas-base
     ports:
-      - "5002:5000"
+      - "5002:7575"
     environment:
       - READ_ONLY=1

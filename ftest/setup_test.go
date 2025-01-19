@@ -1,168 +1,149 @@
 package ftest
 
 import (
-	"flag"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
-const (
-	dockerComposeCmd  = "docker-compose"
-	dockerComposeFile = "ftest/docker-compose.yml"
-
-	ServiceDefault  = "default"
-	ServiceAuth     = "auth"
-	ServiceReadonly = "readonly"
-)
-
-var (
-	enabled   bool
-	skipSetup bool
-	env       *TestingEnvironment
-)
-
-func TestMain(m *testing.M) {
-	flag.BoolVar(&enabled, "ftest", false, "enable functional tests")
-	flag.BoolVar(&skipSetup, "ftest-skip-setup", false, "skip environment setup")
-	flag.Parse()
-
-	var (
-		status int
-		err    error
-	)
-	if !enabled {
-		fmt.Fprintln(os.Stderr, "WARNING: functional tests are not enabled")
-		os.Exit(0)
-	}
-	env, err = New(skipSetup)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if !skipSetup {
-			if err := env.destroy(); err != nil {
-				panic(err)
-			}
-		}
-		os.Exit(status)
-	}()
-	status = m.Run()
-}
-
 type TestingEnvironment struct {
-	projectRoot string
-	services    map[string]TestingEnvironmentService
+	services map[string]ServiceConfig
 }
 
-type TestingEnvironmentService struct {
+type ServiceConfig struct {
+	Name     string
 	Port     int
 	Auth     string
 	Readonly bool
+	Cmd      *exec.Cmd
+	BaseURL  string
 }
 
-func New(skipCreate bool) (*TestingEnvironment, error) {
-	if _, err := exec.LookPath("docker-compose"); err != nil {
-		log.Fatal("docker-compose can not be found in $PATH. Is it installed?\n" +
-			"https://docs.docker.com/compose/#installation-and-set-up")
-		return nil, err
-	}
-	if _, err := exec.LookPath("docker"); err != nil {
-		log.Fatal("docker can not be found in $PATH. Is it installed?")
-		return nil, err
-	}
-	wd, err := os.Getwd()
+var env *TestingEnvironment
+
+func TestMain(m *testing.M) {
+	// Compile the shaas binary
+	binaryPath, err := compileShaasBinary()
 	if err != nil {
-		return nil, err
+		log.Fatalf("Failed to compile shaas binary: %v", err)
 	}
-	env := &TestingEnvironment{
-		projectRoot: path.Clean(filepath.Join(wd, "..")),
-		services: map[string]TestingEnvironmentService{
-			ServiceDefault: {
-				Port: 5000,
-			},
-			ServiceAuth: {
-				Port: 5001,
-				Auth: "user:pass",
-			},
-			ServiceReadonly: {
-				Port:     5002,
-				Readonly: true,
-			},
+
+	// Initialize and start services
+	env, err = NewTestingEnvironment(binaryPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize testing environment: %v", err)
+	}
+	defer env.Shutdown()
+
+	// Wait for services to initialize
+	time.Sleep(2 * time.Second)
+
+	// Run tests
+	status := m.Run()
+
+	// Cleanup and exit
+	os.Exit(status)
+}
+
+func compileShaasBinary() (string, error) {
+	// Adjust the binary output and source path
+	binaryPath := filepath.Join("..", "shaas")
+	sourcePath := filepath.Join("..", "shaas.go")
+
+	// Compile the shaas binary
+	cmd := exec.Command("go", "build", "-o", binaryPath, sourcePath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to compile shaas: %w", err)
+	}
+	return binaryPath, nil
+}
+
+func NewTestingEnvironment(binaryPath string) (*TestingEnvironment, error) {
+	services := map[string]ServiceConfig{
+		"default": {
+			Name:    "default",
+			Port:    5003,
+			BaseURL: "http://localhost:5003",
+		},
+		"auth": {
+			Name:    "auth",
+			Port:    5001,
+			Auth:    "user:pass",
+			BaseURL: "http://localhost:5001",
+		},
+		"readonly": {
+			Name:     "readonly",
+			Port:     5002,
+			Readonly: true,
+			BaseURL:  "http://localhost:5002",
 		},
 	}
-	if skipCreate {
-		return env, nil
-	}
-	return env, env.create()
-}
 
-func (env *TestingEnvironment) create() error {
-	run := func(cmd *exec.Cmd) {
-		cmd.Dir = env.projectRoot
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		log.Printf("ftest fn=create at=run cmd=%q", cmd.String())
-		if err := cmd.Run(); err != nil {
-			panic(err)
-		}
-	}
+	env := &TestingEnvironment{services: services}
 
-	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "stop"))
-	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "build"))
-	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "up", "-d"))
-
-	for svcName, svc := range env.services {
-		run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), fmt.Sprintf("ftest_shaas.%s_1:ftest", svcName)))
-
-		log.Print("Waiting for server...")
-		var err error
-		for i := 0; i < 5; i++ {
-			if _, err = http.Get(env.baseUrl(svc)); err == nil {
-				return nil
-			}
-			time.Sleep(time.Second)
-		}
-		return fmt.Errorf("Server not responding: %s: \n%s", env.baseUrl(svc), err.Error())
-	}
-
-	return nil
-}
-
-func (env *TestingEnvironment) destroy() error {
-	stop := exec.Command("docker-compose", "stop")
-	stop.Dir = env.projectRoot
-	stop.Stdout = os.Stdout
-	stop.Stderr = os.Stderr
-	return stop.Run()
-}
-
-func (env *TestingEnvironment) baseUrl(svc TestingEnvironmentService) string {
-	auth := ""
-	if svc.Auth != "" {
-		auth = fmt.Sprintf("%s@", svc.Auth)
-	}
-
-	host := "localhost"
-	if b2dUrlStr, ok := os.LookupEnv("DOCKER_HOST"); ok {
-		b2dUrl, err := url.Parse(b2dUrlStr)
+	// Start each service
+	for name, config := range services {
+		cmd, err := startShaasService(binaryPath, config.Port, config.Auth, config.Readonly)
 		if err != nil {
-			panic(err)
+			env.Shutdown() // Stop any running services
+			return nil, fmt.Errorf("failed to start %s service: %w", name, err)
 		}
-		host = strings.SplitAfter(b2dUrl.Host, ":")[0]
+		config.Cmd = cmd
+		services[name] = config
 	}
 
-	return fmt.Sprintf("http://%s%s:%d", auth, host, svc.Port)
+	return env, nil
 }
 
-func (env *TestingEnvironment) fixturesUrl(svc TestingEnvironmentService) string {
-	return env.baseUrl(svc) + "/ftest/fixtures"
+func stopExistingService(port int) {
+	cmd := exec.Command("lsof", "-ti", fmt.Sprintf(":%d", port))
+	output, err := cmd.Output()
+	if err == nil && len(output) > 0 {
+		pid := strings.TrimSpace(string(output))
+		exec.Command("kill", "-9", pid).Run()
+	}
+}
+
+func startShaasService(binaryPath string, port int, auth string, readonly bool) (*exec.Cmd, error) {
+	stopExistingService(port)
+
+	cmd := exec.Command(binaryPath, "--port", fmt.Sprintf("%d", port))
+	cmd.Env = os.Environ()
+	if auth != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("BASIC_AUTH=%s", auth))
+	}
+	if readonly {
+		cmd.Env = append(cmd.Env, "READ_ONLY=1")
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start shaas service on port %d: %w", port, err)
+	}
+	return cmd, nil
+}
+
+func (env *TestingEnvironment) Shutdown() {
+	for name, config := range env.services {
+		if config.Cmd != nil {
+			if err := config.Cmd.Process.Kill(); err != nil {
+				log.Printf("Failed to stop %s service: %v", name, err)
+			}
+		}
+	}
+}
+
+func (env *TestingEnvironment) baseUrl(service string) string {
+	return env.services[service].BaseURL
+}
+
+func (env *TestingEnvironment) fixturesUrl(service string) string {
+	return env.baseUrl(service) + "./ftest/fixtures"
 }

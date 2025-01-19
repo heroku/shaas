@@ -19,9 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/websocket"
-
-	"github.com/heroku/shaas/pkg"
+	"github.com/gorilla/websocket"
 )
 
 var (
@@ -77,7 +75,7 @@ func main() {
 	}
 
 	ports := httpPorts()
-    log.Printf("at=service.starting ports=%v", ports)
+	log.Printf("at=service.starting ports=%v", ports)
 
 	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/>/exit", authorize(handleExit))
@@ -85,7 +83,7 @@ func main() {
 
 	for _, p := range ports {
 		go func(addr string) {
-		    log.Printf("at=http-listen port=%s", addr)
+			log.Printf("at=http-listen port=%s", addr)
 			log.Fatal(http.ListenAndServe(addr, nil))
 		}(":" + p)
 	}
@@ -234,20 +232,23 @@ func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathI
 }
 
 func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
-	handler := func(ws *websocket.Conn) {
-		execCmd(res, req, path, pathInfo, ws, ws, true)
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			// Customize origin checks if needed
+			return true
+		},
 	}
 
-	websocket.Server{
-		Handler: handler,
-		Handshake: func(config *websocket.Config, request *http.Request) error {
-			if readonly {
-				log.Println("at=readonly.forbidden.ws")
-				return fmt.Errorf("read only")
-			}
-			return nil
-		},
-	}.ServeHTTP(res, req)
+	ws, err := upgrader.Upgrade(res, req, nil)
+	if err != nil {
+		log.Printf("websocket upgrade failed: %v", err)
+		http.Error(res, "Could not open websocket connection", http.StatusBadRequest)
+		return
+	}
+	defer ws.Close()
+
+	// Pass WebSocket connection to execCmd
+	execCmd(res, req, path, pathInfo, ws.UnderlyingConn(), ws.UnderlyingConn(), true)
 }
 
 func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo, in io.Reader, out io.Writer, interactive bool) {
@@ -363,7 +364,7 @@ func renderDirHTML(res http.ResponseWriter, pathName string, fileInfos []os.File
 
 func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "application/json")
-	fileResponses := map[string]pkg.FileInfoDetails{}
+	fileResponses := map[string]FileInfoDetails{}
 	for _, fi := range fileInfos {
 		fileResponses[fi.Name()] = toFileInfoDetails(fi)
 	}
@@ -374,8 +375,16 @@ func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	fmt.Fprintln(res, string(fileResponsesJSON))
 }
 
-func toFileInfoDetails(fi os.FileInfo) pkg.FileInfoDetails {
-	return pkg.FileInfoDetails{
+// FileInfoDetails contains basic stat + permission details about a file
+type FileInfoDetails struct {
+	Size    int64     `json:"size"`
+	Type    string    `json:"type"`
+	Perm    int       `json:"permission"`
+	ModTime time.Time `json:"updated_at"`
+}
+
+func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
+	return FileInfoDetails{
 		Size:    fi.Size(),
 		Type:    string(fi.Mode().String()[0]),
 		Perm:    int(fi.Mode().Perm()),
@@ -438,8 +447,8 @@ func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
 
 func primaryHTTPPort() string {
 	if portFlag != "" { // Check if the flag is set
-        return portFlag
-    }
+		return portFlag
+	}
 	if port := os.Getenv("PORT"); port != "" {
 		return port
 	}
