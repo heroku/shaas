@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/heroku/shaas/pkg"
 )
 
 var (
@@ -364,7 +366,7 @@ func renderDirHTML(res http.ResponseWriter, pathName string, fileInfos []os.File
 
 func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	res.Header().Set("Content-Type", "application/json")
-	fileResponses := map[string]FileInfoDetails{}
+	fileResponses := map[string]pkg.FileInfoDetails{}
 	for _, fi := range fileInfos {
 		fileResponses[fi.Name()] = toFileInfoDetails(fi)
 	}
@@ -375,16 +377,8 @@ func renderDirJSON(res http.ResponseWriter, fileInfos []os.FileInfo) {
 	fmt.Fprintln(res, string(fileResponsesJSON))
 }
 
-// FileInfoDetails contains basic stat + permission details about a file
-type FileInfoDetails struct {
-	Size    int64     `json:"size"`
-	Type    string    `json:"type"`
-	Perm    int       `json:"permission"`
-	ModTime time.Time `json:"updated_at"`
-}
-
-func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
-	return FileInfoDetails{
+func toFileInfoDetails(fi os.FileInfo) pkg.FileInfoDetails {
+	return pkg.FileInfoDetails{
 		Size:    fi.Size(),
 		Type:    string(fi.Mode().String()[0]),
 		Perm:    int(fi.Mode().Perm()),
