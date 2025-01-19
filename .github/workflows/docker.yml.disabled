@@ -1,0 +1,49 @@
+name: Docker
+on:
+  push:
+    branches:
+      - "master"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build and push image
+        env:
+          RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
+          SERVICETOKEN_ENDPOINT: ${{ secrets.SERVICETOKEN_ENDPOINT }}
+          SERVICE_USERNAME: ${{ secrets.SERVICE_USERNAME }}
+          SERVICE_PASSWORD: ${{ secrets.SERVICE_PASSWORD }}
+          ARCHITECTURES: ${{ secrets.ARCHITECTURES }}
+        run: |
+          echo "logging into runtime-registry"
+          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
+          echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
+
+          IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GITHUB_SHA}
+
+          IFS=',' read -ra SUPPORTED_ARCHS <<< "$ARCHITECTURES"
+          ARCH_SPECIFIC_IMAGES=()
+
+          for ARCH in ${SUPPORTED_ARCHS[@]}
+          do
+            IMAGE_NAME_TAG_ARCH=$IMAGE_NAME_TAG_BASE-$ARCH
+            PLATFORM=linux/$ARCH
+
+            echo "building architecture-specific image"
+            docker build --tag $ARCH -f Dockerfile . --platform=$PLATFORM --build-arg ARCH=$ARCH
+            docker tag $ARCH $IMAGE_NAME_TAG_ARCH
+
+            echo "pushing architecture-specific image"
+            docker push $IMAGE_NAME_TAG_ARCH
+
+            ARCH_SPECIFIC_IMAGES+=( $IMAGE_NAME_TAG_ARCH )
+          done
+
+          echo "building manifest"
+          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
+
+          echo "pushing manifest"
+          docker manifest push $IMAGE_NAME_TAG_BASE
+
