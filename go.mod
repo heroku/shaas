@@ -1,12 +1,16 @@
 module github.com/heroku/shaas
 
-go 1.16
+go 1.23
 
 // +heroku goVersion go1.16
 
 require (
+	github.com/gorilla/websocket v1.5.3
+	github.com/stretchr/testify v1.10.0
+)
+
+require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/testify v1.1.5-0.20161217200445-2402e8e7a02f
-	golang.org/x/net v0.0.0-20170110034938-60c41d1de8da
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

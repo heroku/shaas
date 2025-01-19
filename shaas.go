@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	"github.com/heroku/shaas/pkg"
 )
@@ -77,7 +77,7 @@ func main() {
 	}
 
 	ports := httpPorts()
-    log.Printf("at=service.starting ports=%v", ports)
+	log.Printf("at=service.starting ports=%v", ports)
 
 	http.HandleFunc("/health", handleHealth)
 	http.HandleFunc("/>/exit", authorize(handleExit))
@@ -85,7 +85,7 @@ func main() {
 
 	for _, p := range ports {
 		go func(addr string) {
-		    log.Printf("at=http-listen port=%s", addr)
+			log.Printf("at=http-listen port=%s", addr)
 			log.Fatal(http.ListenAndServe(addr, nil))
 		}(":" + p)
 	}
@@ -234,20 +234,23 @@ func handlePost(res http.ResponseWriter, req *http.Request, path *os.File, pathI
 }
 
 func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo) {
-	handler := func(ws *websocket.Conn) {
-		execCmd(res, req, path, pathInfo, ws, ws, true)
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			// Customize origin checks if needed
+			return true
+		},
 	}
 
-	websocket.Server{
-		Handler: handler,
-		Handshake: func(config *websocket.Config, request *http.Request) error {
-			if readonly {
-				log.Println("at=readonly.forbidden.ws")
-				return fmt.Errorf("read only")
-			}
-			return nil
-		},
-	}.ServeHTTP(res, req)
+	ws, err := upgrader.Upgrade(res, req, nil)
+	if err != nil {
+		log.Printf("websocket upgrade failed: %v", err)
+		http.Error(res, "Could not open websocket connection", http.StatusBadRequest)
+		return
+	}
+	defer ws.Close()
+
+	// Pass WebSocket connection to execCmd
+	execCmd(res, req, path, pathInfo, ws.UnderlyingConn(), ws.UnderlyingConn(), true)
 }
 
 func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo os.FileInfo, in io.Reader, out io.Writer, interactive bool) {
@@ -284,12 +287,29 @@ func execCmd(res http.ResponseWriter, req *http.Request, path *os.File, pathInfo
 		cmd.Env = append(cmd.Env, "PS1=\\[\\033[01;34m\\]\\w\\[\\033[00m\\] \\[\\033[01;32m\\]$ \\[\\033[00m\\]")
 	}
 	cmd.Stdin = in
-	cmd.Stdout = out
-	cmd.Stderr = out
-	if err := cmd.Run(); err != nil {
-		// error already sent to client. log only
+
+	// Capture command output
+	output := &strings.Builder{}
+	cmd.Stdout = output
+	cmd.Stderr = output
+
+	// Run the command
+	err := cmd.Run()
+
+	// Set Content-Type to plain text for all cases
+	res.Header().Set("Content-Type", "text/plain")
+
+	if err != nil {
+		// Log and return the error output with status 500
 		log.Printf("method=%s path=%q message=%q", req.Method, req.URL.Path, err)
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(output.String())) // Return the error output
+		return
 	}
+
+	// On success, return the command output with status 200
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(output.String()))
 }
 
 func handleWrite(res http.ResponseWriter, req *http.Request, pathname string, append bool) {
@@ -366,6 +386,22 @@ func toFileInfoDetails(fi os.FileInfo) pkg.FileInfoDetails {
 	}
 }
 
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rec *statusRecorder) WriteHeader(code int) {
+	if rec.status == http.StatusOK { // Only set status if it hasn't been set already
+		rec.status = code
+	}
+	rec.ResponseWriter.WriteHeader(code)
+}
+
+func (rec *statusRecorder) Write(p []byte) (int, error) {
+	return rec.ResponseWriter.Write(p)
+}
+
 type stdError struct {
 	Message string `json:"message"`
 	Cause   error  `json:"cause"`
@@ -405,8 +441,8 @@ func (fww flushWriterWrapper) Write(p []byte) (n int, err error) {
 
 func primaryHTTPPort() string {
 	if portFlag != "" { // Check if the flag is set
-        return portFlag
-    }
+		return portFlag
+	}
 	if port := os.Getenv("PORT"); port != "" {
 		return port
 	}
