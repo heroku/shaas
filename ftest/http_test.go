@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -50,7 +52,7 @@ func TestGetDir(t *testing.T) {
 
 	body, err := ioutil.ReadAll(res.Body)
 	assert.Nil(t, err)
-	dir := &map[string]pkg.FileInfoDetails{}
+	dir := &map[string]FileInfoDetails{}
 	assert.Nil(t, json.Unmarshal(body, dir))
 
 	a := (*dir)["a"]
@@ -122,4 +124,21 @@ func TestBasicAuthUnauthorizedWrongAuth(t *testing.T) {
 	res, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+}
+
+// FileInfoDetails contains basic stat + permission details about a file
+type FileInfoDetails struct {
+	Size    int64     `json:"size"`
+	Type    string    `json:"type"`
+	Perm    int       `json:"permission"`
+	ModTime time.Time `json:"updated_at"`
+}
+
+func toFileInfoDetails(fi os.FileInfo) FileInfoDetails {
+	return FileInfoDetails{
+		Size:    fi.Size(),
+		Type:    string(fi.Mode().String()[0]),
+		Perm:    int(fi.Mode().Perm()),
+		ModTime: fi.ModTime(),
+	}
 }
