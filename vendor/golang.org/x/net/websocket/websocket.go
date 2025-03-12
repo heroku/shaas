@@ -8,8 +8,7 @@
 // This package currently lacks some features found in an alternative
 // and more actively maintained WebSocket package:
 //
-//     https://godoc.org/github.com/gorilla/websocket
-//
+//	https://pkg.go.dev/github.com/coder/websocket
 package websocket // import "golang.org/x/net/websocket"
 
 import (
@@ -18,7 +17,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -209,7 +207,7 @@ again:
 	n, err = ws.frameReader.Read(msg)
 	if err == io.EOF {
 		if trailer := ws.frameReader.TrailerReader(); trailer != nil {
-			io.Copy(ioutil.Discard, trailer)
+			io.Copy(io.Discard, trailer)
 		}
 		ws.frameReader = nil
 		goto again
@@ -241,7 +239,10 @@ func (ws *Conn) Close() error {
 	return err1
 }
 
+// IsClientConn reports whether ws is a client-side connection.
 func (ws *Conn) IsClientConn() bool { return ws.request == nil }
+
+// IsServerConn reports whether ws is a server-side connection.
 func (ws *Conn) IsServerConn() bool { return ws.request != nil }
 
 // LocalAddr returns the WebSocket Origin for the connection for client, or
@@ -328,7 +329,7 @@ func (cd Codec) Receive(ws *Conn, v interface{}) (err error) {
 	ws.rio.Lock()
 	defer ws.rio.Unlock()
 	if ws.frameReader != nil {
-		_, err = io.Copy(ioutil.Discard, ws.frameReader)
+		_, err = io.Copy(io.Discard, ws.frameReader)
 		if err != nil {
 			return err
 		}
@@ -360,7 +361,7 @@ again:
 		return ErrFrameTooLarge
 	}
 	payloadType := frame.PayloadType()
-	data, err := ioutil.ReadAll(frame)
+	data, err := io.ReadAll(frame)
 	if err != nil {
 		return err
 	}
@@ -413,7 +414,6 @@ Trivial usage:
 	// send binary frame
 	data = []byte{0, 1, 2}
 	websocket.Message.Send(ws, data)
-
 */
 var Message = Codec{marshal, unmarshal}
 
