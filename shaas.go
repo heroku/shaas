@@ -107,7 +107,7 @@ func handleHealth(res http.ResponseWriter, req *http.Request) {
 
 func handleAny(res http.ResponseWriter, req *http.Request) {
 	method := strings.ToUpper(req.Method)
-	if _method := req.URL.Query().Get("_method"); method == "POST" && _method != "" {
+	if _method := req.URL.Query().Get("_method"); _method != "" {
 		method = strings.ToUpper(_method)
 	}
 

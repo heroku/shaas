@@ -1,6 +1,6 @@
 module github.com/heroku/shaas
 
-go 1.23.0
+go 1.23
 
 // +heroku goVersion go1.16
 
