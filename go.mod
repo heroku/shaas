@@ -1,12 +1,12 @@
 module github.com/heroku/shaas
 
-go 1.23
+go 1.24.0
 
 // +heroku goVersion go1.16
 
 require (
 	github.com/stretchr/testify v1.1.5-0.20161217200445-2402e8e7a02f
-	golang.org/x/net v0.41.0
+	golang.org/x/net v0.46.0
 )
 
 require (
