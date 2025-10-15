@@ -1,4 +1,5 @@
-shaas:
-  build: .
-  ports:
-   - "5000:5000"
+services:
+  shaas:
+    build: .
+    ports:
+     - "5000:5000"
