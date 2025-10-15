@@ -130,3 +130,27 @@ func TestBasicAuthUnauthorizedWrongAuth(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
+
+func TestSlugonlyAllowsSlugTgz(t *testing.T) {
+	res, err := http.Get(env.baseUrl(env.services[ServiceSlugonly]) + "/app/slug.tgz")
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func TestSlugonlyAllowsChecksum(t *testing.T) {
+	res, err := http.Get(env.baseUrl(env.services[ServiceSlugonly]) + "/app/slug.tgz.sha256")
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func TestSlugonlyForbidsOtherFiles(t *testing.T) {
+	res, err := http.Get(env.fixturesUrl(env.services[ServiceSlugonly]) + "/a")
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusForbidden, res.StatusCode)
+}
+
+func TestSlugonlyForbidsPost(t *testing.T) {
+	res, err := http.Post(env.baseUrl(env.services[ServiceSlugonly])+"/app/slug.tgz", "", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusForbidden, res.StatusCode)
+}

@@ -25,6 +25,7 @@ var (
 	authUser, authPassword string
 	requireBasicAuth       bool
 	readonly               bool
+	slugonly               bool
 )
 
 const (
@@ -49,6 +50,12 @@ func main() {
 		log.Println("at=readonly.enabled")
 	} else {
 		log.Println("at=readonly.disabled")
+	}
+
+	if _, slugonly = os.LookupEnv("SLUG_ONLY"); slugonly {
+		log.Println("at=slugonly.enabled")
+	} else {
+		log.Println("at=slugonly.disabled")
 	}
 
 	http.HandleFunc("/health", handleHealth)
@@ -116,6 +123,12 @@ func handleAny(res http.ResponseWriter, req *http.Request) {
 	if readonly && method != "GET" {
 		log.Printf("at=readonly.forbidden.%s", strings.ToLower(method))
 		http.Error(res, "Only GET supported", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if slugonly && (method != "GET" || !isSlugPath(req.URL.Path)) {
+		log.Printf("at=slugonly.forbidden path=%s", req.URL.Path)
+		http.Error(res, "Only slug.tgz and checksum files allowed", http.StatusForbidden)
 		return
 	}
 
@@ -215,6 +228,10 @@ func handleWs(res http.ResponseWriter, req *http.Request, path *os.File, pathInf
 			if readonly {
 				log.Println("at=readonly.forbidden.ws")
 				return fmt.Errorf("read only")
+			}
+			if slugonly {
+				log.Println("at=slugonly.forbidden.ws")
+				return fmt.Errorf("slug only")
 			}
 			return nil
 		},
@@ -459,6 +476,10 @@ func upperCaseAndUnderscore(r rune) rune {
 	}
 	// TODO: other transformations in spec or practice?
 	return r
+}
+
+func isSlugPath(path string) bool {
+	return path == "/app/slug.tgz" || path == "/app/slug.tgz.sha256"
 }
 
 func parseInt(s string, d int) int {

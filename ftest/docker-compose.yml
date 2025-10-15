@@ -24,3 +24,9 @@ services:
       - "5002:5000"
     environment:
       - READ_ONLY=1
+  shaas.slugonly:
+    << : *shaas-base
+    ports:
+      - "5003:5000"
+    environment:
+      - SLUG_ONLY=1

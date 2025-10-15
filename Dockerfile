@@ -5,7 +5,7 @@ ARG ARCH="amd64"
 WORKDIR $GOPATH/src/github.com/heroku/shaas
 ADD . $GOPATH/src/github.com/heroku/shaas
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH}
-RUN go install -mod=vendor
+RUN go build -o /go/bin/shaas -mod=vendor
 
 FROM ubuntu
 
@@ -20,6 +20,10 @@ WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /go/bin/shaas .
 COPY --from=builder /go/src/github.com/heroku/shaas/bin/pseudo-interactive-bash /app/bin/pseudo-interactive-bash
+
+# Add test slug files
+COPY --from=builder /go/src/github.com/heroku/shaas/ftest/fixtures/app/slug.tgz /app/slug.tgz
+COPY --from=builder /go/src/github.com/heroku/shaas/ftest/fixtures/app/slug.tgz.sha256 /app/slug.tgz.sha256
 
 EXPOSE 5000
 
