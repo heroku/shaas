@@ -22,6 +22,7 @@ const (
 	ServiceDefault  = "default"
 	ServiceAuth     = "auth"
 	ServiceReadonly = "readonly"
+	ServiceSlugonly = "slugonly"
 )
 
 var (
@@ -96,6 +97,9 @@ func New(skipCreate bool) (*TestingEnvironment, error) {
 			ServiceReadonly: {
 				Port:     5002,
 				Readonly: true,
+			},
+			ServiceSlugonly: {
+				Port: 5003,
 			},
 		},
 	}
