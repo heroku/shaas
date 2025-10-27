@@ -22,6 +22,7 @@ const (
 	ServiceDefault  = "default"
 	ServiceAuth     = "auth"
 	ServiceReadonly = "readonly"
+	ServiceSlugonly = "slugonly"
 )
 
 var (
@@ -97,6 +98,9 @@ func New(skipCreate bool) (*TestingEnvironment, error) {
 				Port:     5002,
 				Readonly: true,
 			},
+			ServiceSlugonly: {
+				Port: 5003,
+			},
 		},
 	}
 	if skipCreate {
@@ -121,7 +125,7 @@ func (env *TestingEnvironment) create() error {
 	run(exec.Command(dockerComposeCmd, "-f", dockerComposeFile, "up", "-d"))
 
 	for svcName, svc := range env.services {
-		run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), fmt.Sprintf("ftest_shaas.%s_1:ftest", svcName)))
+		run(exec.Command("docker", "cp", filepath.Join(env.projectRoot, "ftest"), fmt.Sprintf("ftest-shaas.%s-1:ftest", svcName)))
 
 		log.Print("Waiting for server...")
 		var err error
