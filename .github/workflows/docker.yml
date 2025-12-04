@@ -15,6 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
       - name: build and push image
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
