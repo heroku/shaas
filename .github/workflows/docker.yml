@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - "master"
+      - "add-ecr-push"
 
 permissions:
   id-token: write
