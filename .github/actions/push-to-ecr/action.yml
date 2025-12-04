@@ -6,7 +6,7 @@ inputs:
     description: 'ECR repository name (e.g., s/heroku/widgetsrus/widgetsrus)'
     required: true
   image-tag:
-    description: 'Image tag to use (e.g., ${{ github.sha }})'
+    description: 'Image tag to use (e.g., commit SHA or version number)'
     required: true
   image-name:
     description: 'Local Docker image name to push (defaults to ecr-repository:image-tag)'
