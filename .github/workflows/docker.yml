@@ -54,7 +54,7 @@ jobs:
           done
 
           echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
+          docker manifest create $IMAGE_NAME_TAG_BASE ${ARCH_SPECIFIC_IMAGES[@]}
 
           echo "pushing manifest"
           docker manifest push $IMAGE_NAME_TAG_BASE
