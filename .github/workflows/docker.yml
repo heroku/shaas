@@ -4,11 +4,16 @@ on:
     branches:
       - "master"
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: build and push image
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
@@ -46,4 +51,11 @@ jobs:
 
           echo "pushing manifest"
           docker manifest push $IMAGE_NAME_TAG_BASE
+      
+      - name: Push to ECR
+        uses: ./.github/actions/push-to-ecr
+        with:
+          ecr-repository: s/heroku/shaas/shaas
+          image-tag: ${{ github.sha }}
+          architectures: ${{ secrets.ARCHITECTURES }}
 
