@@ -8,10 +8,6 @@ inputs:
   image-tag:
     description: 'Image tag to use (e.g., commit SHA or version number)'
     required: true
-  image-name:
-    description: 'Local Docker image name to push (defaults to ecr-repository:image-tag)'
-    required: false
-    default: ''
   aws-region:
     description: 'AWS region for ECR'
     required: false
@@ -75,18 +71,15 @@ runs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: ${{ inputs.ecr-repository }}
         IMAGE_TAG: ${{ inputs.image-tag }}
-        LOCAL_IMAGE: ${{ inputs.image-name }}
         ARCHITECTURES: ${{ inputs.architectures }}
       run: |
         ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
         
         if [ -z "$ARCHITECTURES" ]; then
           # Single-arch push
-          if [ -z "$LOCAL_IMAGE" ]; then
-            SOURCE_IMAGE="${ECR_IMAGE}"
-          else
-            SOURCE_IMAGE="$LOCAL_IMAGE"
-          fi
+          # Assume image is built with tag matching the repository name
+          REPO_NAME=$(basename "$ECR_REPOSITORY")
+          SOURCE_IMAGE="${REPO_NAME}:${IMAGE_TAG}"
           
           echo "📦 Tagging image: $SOURCE_IMAGE → $ECR_IMAGE"
           docker tag "$SOURCE_IMAGE" "$ECR_IMAGE"
@@ -97,17 +90,13 @@ runs:
           echo "✅ Successfully pushed to ECR"
         else
           # Multi-arch push
+          # Images are expected to be built with tags matching architecture names (e.g., "amd64", "arm64")
           IFS=',' read -ra ARCHS <<< "$ARCHITECTURES"
           ARCH_IMAGES=()
           
           for ARCH in "${ARCHS[@]}"; do
             ARCH_TAG="${ECR_IMAGE}-${ARCH}"
-            
-            if [ -z "$LOCAL_IMAGE" ]; then
-              SOURCE_IMAGE="${ARCH}"
-            else
-              SOURCE_IMAGE="${LOCAL_IMAGE}-${ARCH}"
-            fi
+            SOURCE_IMAGE="${ARCH}"
             
             echo "📦 Tagging ${ARCH} image: $SOURCE_IMAGE → $ARCH_TAG"
             docker tag "$SOURCE_IMAGE" "$ARCH_TAG"
