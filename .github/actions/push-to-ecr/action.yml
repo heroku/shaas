@@ -1,119 +1,74 @@
-name: 'Push Image to ECR'
-description: 'Authenticate with ECR, validate tags, and push a Docker image'
+name: 'Push to ECR'
+description: 'Authenticate with ECR and push pre-built Docker images'
 
 inputs:
-  ecr-repository:
-    description: 'ECR repository name (e.g., s/heroku/widgetsrus/widgetsrus)'
+  ecr-repository-path:
+    description: 'ECR repository path (e.g., s/heroku/shaas/shaas)'
     required: true
   image-tag:
-    description: 'Image tag to use (e.g., commit SHA or version number)'
+    description: 'Image tag (e.g., commit SHA)'
     required: true
   aws-region:
-    description: 'AWS region for ECR'
+    description: 'AWS region'
     required: false
     default: 'us-east-1'
   aws-role-arn:
-    description: 'AWS IAM role ARN for OIDC authentication'
+    description: 'AWS IAM role ARN'
     required: false
     default: 'arn:aws:iam::970597968373:role/ecr-repo-gha-oidc-iam-role'
-  architectures:
-    description: 'Comma-separated list of architectures for multi-arch build (e.g., "amd64,arm64"). Leave empty for single-arch.'
-    required: false
-    default: ''
+  source-image-tags:
+    description: 'Comma-separated list of local image tags to push (e.g., "amd64,arm64" or "shaas" for single-arch)'
+    required: true
 
 outputs:
   image-uri:
-    description: 'Full ECR image URI that was pushed'
+    description: 'Full ECR image URI'
     value: ${{ steps.push.outputs.image-uri }}
-  registry:
-    description: 'ECR registry URL'
-    value: ${{ steps.login-ecr.outputs.registry }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Validate image tag
+    - name: Validate inputs
       shell: bash
       run: |
-        TAG="${{ inputs.image-tag }}"
-        
-        # ECR tag requirements:
-        # - 1-128 characters
-        # - Must start with alphanumeric character
-        # - Can contain: a-z, A-Z, 0-9, hyphens, underscores, periods, forward slashes
-        if ! echo "$TAG" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$'; then
-          echo "❌ Invalid image tag: $TAG"
-          echo ""
-          echo "ECR tag requirements:"
-          echo "  - Must be 1-128 characters"
-          echo "  - Must start with alphanumeric character (a-z, A-Z, 0-9)"
-          echo "  - Can contain: letters, numbers, hyphens, underscores, periods, slashes"
-          echo "  - Cannot start with period or hyphen"
-          exit 1
-        fi
-        
-        echo "✅ Valid image tag: $TAG"
+        chmod +x "${{ github.action_path }}/validate.sh"
+        "${{ github.action_path }}/validate.sh" "${{ inputs.ecr-repository-path }}" "${{ github.repository }}"
 
-    - name: Configure AWS credentials for ECR
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ inputs.aws-role-arn }}
         aws-region: ${{ inputs.aws-region }}
 
-    - name: Login to Amazon ECR
+    - name: Login to ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Tag and push image to ECR
+    - name: Push to ECR
       id: push
       shell: bash
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository-path }}
         IMAGE_TAG: ${{ inputs.image-tag }}
-        ARCHITECTURES: ${{ inputs.architectures }}
+        SOURCE_IMAGES: ${{ inputs.source-image-tags }}
       run: |
         ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+        IFS=',' read -ra IMAGES <<< "$SOURCE_IMAGES"
         
-        if [ -z "$ARCHITECTURES" ]; then
-          # Single-arch push
-          # Assume image is built with tag matching the repository name
-          REPO_NAME=$(basename "$ECR_REPOSITORY")
-          SOURCE_IMAGE="${REPO_NAME}:${IMAGE_TAG}"
-          
-          echo "📦 Tagging image: $SOURCE_IMAGE → $ECR_IMAGE"
-          docker tag "$SOURCE_IMAGE" "$ECR_IMAGE"
-          
-          echo "⬆️  Pushing image to ECR: $ECR_IMAGE"
+        if [ ${#IMAGES[@]} -eq 1 ]; then
+          docker tag "${IMAGES[0]}" "$ECR_IMAGE"
           docker push "$ECR_IMAGE"
-          
-          echo "✅ Successfully pushed to ECR"
         else
-          # Multi-arch push
-          # Images are expected to be built with tags matching architecture names (e.g., "amd64", "arm64")
-          IFS=',' read -ra ARCHS <<< "$ARCHITECTURES"
-          ARCH_IMAGES=()
-          
-          for ARCH in "${ARCHS[@]}"; do
-            ARCH_TAG="${ECR_IMAGE}-${ARCH}"
-            SOURCE_IMAGE="${ARCH}"
-            
-            echo "📦 Tagging ${ARCH} image: $SOURCE_IMAGE → $ARCH_TAG"
-            docker tag "$SOURCE_IMAGE" "$ARCH_TAG"
-            
-            echo "⬆️  Pushing ${ARCH} image: $ARCH_TAG"
+          ARCH_TAGS=()
+          for IMG in "${IMAGES[@]}"; do
+            ARCH_TAG="${ECR_IMAGE}-${IMG}"
+            docker tag "$IMG" "$ARCH_TAG"
             docker push "$ARCH_TAG"
-            
-            ARCH_IMAGES+=("$ARCH_TAG")
+            ARCH_TAGS+=("$ARCH_TAG")
           done
-          
-          echo "📋 Creating manifest: $ECR_IMAGE"
-          docker manifest create "$ECR_IMAGE" "${ARCH_IMAGES[@]}"
-          
-          echo "⬆️  Pushing manifest: $ECR_IMAGE"
+          docker manifest create "$ECR_IMAGE" "${ARCH_TAGS[@]}"
           docker manifest push "$ECR_IMAGE"
-          
-          echo "✅ Successfully pushed multi-arch image to ECR"
         fi
         
         echo "image-uri=$ECR_IMAGE" >> $GITHUB_OUTPUT

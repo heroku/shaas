@@ -62,7 +62,7 @@ jobs:
       - name: Push to ECR
         uses: ./.github/actions/push-to-ecr
         with:
-          ecr-repository: s/heroku/shaas/shaas
+          ecr-repository-path: s/heroku/shaas/shaas
           image-tag: ${{ github.sha }}
-          architectures: ${{ secrets.ARCHITECTURES }}
+          source-image-tags: ${{ secrets.ARCHITECTURES }}
 
