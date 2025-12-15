@@ -1,0 +1,68 @@
+name: 'Push to ECR'
+description: 'Push pre-built Docker images to the Heroku ECR repository'
+
+inputs:
+  ecr-repository-path:
+    description: 'ECR repository path (e.g., s/heroku/shaas/shaas)'
+    required: true
+  image-tag:
+    description: 'Image tag (e.g., commit SHA)'
+    required: true
+  aws-region:
+    description: 'AWS region'
+    required: false
+    default: 'us-east-1'
+  source-image-tags:
+    description: 'Comma-separated list of local image tags to push (e.g., "amd64,arm64" or "shaas" for single-arch)'
+    required: true
+
+outputs:
+  image-uri:
+    description: 'Full ECR image URI'
+    value: ${{ steps.push.outputs.image-uri }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        chmod +x "${{ github.action_path }}/validate.sh"
+        "${{ github.action_path }}/validate.sh" "${{ inputs.ecr-repository-path }}" "${{ github.repository }}"
+
+    - name: Login to Heroku ECR
+      id: login-ecr
+      uses: heroku/kubernetes/actions/ecr/login@master
+      with:
+        aws-region: ${{ vars.HEROKU_ECR_VA_AWS_REGION }}
+        role-to-assume: "arn:aws:iam::970597968373:role/ecr-gha-role-heroku-${{ github.event.repository.name }}"
+
+    - name: Push to Heroku ECR
+      id: push
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository-path }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        SOURCE_IMAGES: ${{ inputs.source-image-tags }}
+      run: |
+        ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+        IFS=',' read -ra IMAGES <<< "$SOURCE_IMAGES"
+        
+        if [ ${#IMAGES[@]} -eq 1 ]; then
+          docker tag "${IMAGES[0]}" "$ECR_IMAGE"
+          docker push "$ECR_IMAGE"
+        else
+          ARCH_TAGS=()
+          for IMG in "${IMAGES[@]}"; do
+            ARCH_TAG="${ECR_IMAGE}-${IMG}"
+            docker tag "$IMG" "$ARCH_TAG"
+            docker push "$ARCH_TAG"
+            ARCH_TAGS+=("$ARCH_TAG")
+          done
+          # TODO: Not sure we want to push the manifest until the transition away from RR.
+          # docker manifest create "$ECR_IMAGE" "${ARCH_TAGS[@]}"
+          # docker manifest push "$ECR_IMAGE"
+        fi
+        
+        echo "image-uri=$ECR_IMAGE" >> $GITHUB_OUTPUT

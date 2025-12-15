@@ -3,12 +3,24 @@ on:
   push:
     branches:
       - "master"
+      - "add-ecr-push"
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
       - name: build and push image
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
@@ -42,8 +54,15 @@ jobs:
           done
 
           echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
+          docker manifest create $IMAGE_NAME_TAG_BASE ${ARCH_SPECIFIC_IMAGES[@]}
 
           echo "pushing manifest"
           docker manifest push $IMAGE_NAME_TAG_BASE
+      
+      - name: Push to ECR
+        uses: ./.github/actions/push-to-ecr
+        with:
+          ecr-repository-path: s/heroku/shaas/shaas
+          image-tag: ${{ github.sha }} # Equivalent to ${GITHUB_SHA} 
+          source-image-tags: ${{ secrets.ARCHITECTURES }}
 
