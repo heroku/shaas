@@ -30,12 +30,10 @@ runs:
         chmod +x "${{ github.action_path }}/validate.sh"
         "${{ github.action_path }}/validate.sh" "${{ inputs.ecr-repository-path }}" "${{ github.repository }}"
 
+    # TODO: Reset the branch to main once this is tested.
     - name: Login to Heroku ECR
       id: login-ecr
-      uses: heroku/kubernetes/actions/ecr/login@master
-      with:
-        aws-region: ${{ vars.HEROKU_ECR_VA_AWS_REGION }}
-        role-to-assume: "arn:aws:iam::970597968373:role/ecr-gha-role-heroku-${{ github.event.repository.name }}"
+      uses: heroku/kubernetes/actions/ecr/login@cj-default-arn-in-ecr-login
 
     - name: Push to Heroku ECR
       id: push
@@ -60,9 +58,8 @@ runs:
             docker push "$ARCH_TAG"
             ARCH_TAGS+=("$ARCH_TAG")
           done
-          # TODO: Not sure we want to push the manifest until the transition away from RR.
-          # docker manifest create "$ECR_IMAGE" "${ARCH_TAGS[@]}"
-          # docker manifest push "$ECR_IMAGE"
+          docker manifest create "$ECR_IMAGE" "${ARCH_TAGS[@]}"
+          docker manifest push "$ECR_IMAGE"
         fi
         
         echo "image-uri=$ECR_IMAGE" >> $GITHUB_OUTPUT
