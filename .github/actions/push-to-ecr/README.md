@@ -47,6 +47,18 @@ Authenticates with Amazon ECR using OIDC and pushes pre-built Docker images.
 - For multi-arch: images tagged with architecture names (e.g., `amd64`, `arm64`)
 - GitHub Actions workflow must have `id-token: write` permission for OIDC
 
+## How It Works
+
+This action pushes **locally built images** to ECR. The images must exist in Docker's local image cache on the runner before calling this action.
+
+**Example flow:**
+1. Your workflow builds images: `docker build --tag amd64 ...` and `docker build --tag arm64 ...`
+2. Docker stores these images locally with tags `amd64` and `arm64`
+3. This action takes `source-image-tags: "amd64,arm64"` as input
+4. The action finds those local images by their tag names and pushes them to ECR
+
+**Key point:** The action does NOT pull images from external registries. It only works with images that already exist in Docker's local storage on the current runner.
+
 ## Behavior
 
 **Single-arch:** Tags and pushes one image to ECR.
