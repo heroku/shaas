@@ -1,0 +1,25 @@
+name: 'ECR Login'
+description: 'Configure AWS credentials and login to ECR'
+inputs:
+  aws-region:
+    description: 'AWS region'
+    required: true
+  role-to-assume:
+    description: 'AWS IAM role ARN to assume'
+    required: true
+outputs:
+  registry:
+    description: 'The ECR registry URL'
+    value: ${{ steps.ecr-login.outputs.registry }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.role-to-assume }}
+        
+    - name: Login to ECR
+      id: ecr-login
+      uses: aws-actions/amazon-ecr-login@v2

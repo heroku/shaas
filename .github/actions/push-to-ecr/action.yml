@@ -8,10 +8,6 @@ inputs:
   image-tag:
     description: 'Image tag (e.g., commit SHA)'
     required: true
-  aws-region:
-    description: 'AWS region'
-    required: false
-    default: 'us-east-1'
   source-image-tags:
     description: 'Comma-separated list of local image tags to push (e.g., "amd64,arm64" or "shaas" for single-arch)'
     required: true
@@ -24,16 +20,12 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Validate inputs
-      shell: bash
-      run: |
-        chmod +x "${{ github.action_path }}/validate.sh"
-        "${{ github.action_path }}/validate.sh" "${{ inputs.ecr-repository-path }}" "${{ github.repository }}"
-
-    # TODO: Reset the branch to main once this is tested.
     - name: Login to Heroku ECR
       id: login-ecr
-      uses: heroku/kubernetes/actions/ecr/login@cj-default-arn-in-ecr-login
+      uses: ./.github/actions/login
+      with:
+        aws-region: ${{ secrets.ECR_AWS_REGION }}
+        role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
 
     - name: Push to Heroku ECR
       id: push
