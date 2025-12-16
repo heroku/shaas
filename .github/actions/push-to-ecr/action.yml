@@ -2,6 +2,12 @@ name: 'Push to ECR'
 description: 'Push pre-built Docker images to the Heroku ECR repository'
 
 inputs:
+  aws-region:
+    description: 'AWS region for ECR'
+    required: true
+  role-to-assume:
+    description: 'AWS role ARN to assume'
+    required: true
   ecr-repository-path:
     description: 'ECR repository path (e.g., s/heroku/shaas/shaas)'
     required: true
@@ -24,8 +30,8 @@ runs:
       id: login-ecr
       uses: ./.github/actions/login
       with:
-        aws-region: ${{ secrets.ECR_AWS_REGION }}
-        role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.role-to-assume }}
 
     - name: Push to Heroku ECR
       id: push

@@ -63,7 +63,8 @@ jobs:
       - name: Push to ECR
         uses: ./.github/actions/push-to-ecr
         with:
+          aws-region: ${{ secrets.ECR_AWS_REGION }}
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
           ecr-repository-path: s/heroku/shaas/shaas
           image-tag: ${{ github.sha }} # Equivalent to ${GITHUB_SHA} 
           source-image-tags: ${{ secrets.ARCHITECTURES }}
-
