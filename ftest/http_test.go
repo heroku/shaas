@@ -131,6 +131,48 @@ func TestBasicAuthUnauthorizedWrongAuth(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
 
+func TestGetDirHTML_EscapesFilenames(t *testing.T) {
+	svc := env.services[ServiceDefault]
+	base := env.baseUrl(svc)
+
+	// Create a directory with a malicious name containing a file
+	res, err := http.Post(base+"/tmp", "", strings.NewReader("mkdir -p \"' onclick='alert(1)\""))
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Listing /tmp should escape the malicious directory name in the href
+	req, err := http.NewRequest("GET", base+"/tmp", nil)
+	assert.Nil(t, err)
+	req.Header.Set("Accept", "text/html")
+
+	res, err = http.DefaultClient.Do(req)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	body, err := ioutil.ReadAll(res.Body)
+	assert.Nil(t, err)
+	assert.NotContains(t, string(body), "' onclick=")
+	assert.Contains(t, string(body), "onclick")
+
+	// Create a file inside that directory to test the path is also escaped
+	res, err = http.Post(base+"/tmp/'%20onclick%3D'alert(1)", "", strings.NewReader("touch safe-file"))
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	req, err = http.NewRequest("GET", base+"/tmp/'%20onclick%3D'alert(1)", nil)
+	assert.Nil(t, err)
+	req.Header.Set("Accept", "text/html")
+
+	res, err = http.DefaultClient.Do(req)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	body, err = ioutil.ReadAll(res.Body)
+	assert.Nil(t, err)
+	assert.NotContains(t, string(body), "' onclick=")
+	assert.Contains(t, string(body), "onclick")
+}
+
 func TestSlugonlyAllowsSlugTgz(t *testing.T) {
 	res, err := http.Get(env.baseUrl(env.services[ServiceSlugonly]) + "/app/slug.tgz")
 	assert.Nil(t, err)
