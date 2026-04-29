@@ -327,7 +327,7 @@ func renderDirHTML(res http.ResponseWriter, pathName string, fileInfos []os.File
 			label = label + "/"
 		}
 
-		fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", pathName, fi.Name(), html.EscapeString(label))
+		fmt.Fprintf(res, "<li><a href='%s%s'>%s</a></li>", html.EscapeString(pathName), html.EscapeString(fi.Name()), html.EscapeString(label))
 	}
 	fmt.Fprintf(res, "</ul></pre>")
 }
