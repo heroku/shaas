@@ -4,11 +4,22 @@ on:
     branches:
       - "master"
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
       - name: build and push image
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
@@ -19,6 +30,7 @@ jobs:
         run: |
           echo "logging into runtime-registry"
           TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
+          echo "::add-mask::$TOKEN"
           echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
 
           IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GITHUB_SHA}
@@ -42,8 +54,16 @@ jobs:
           done
 
           echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
+          docker manifest create $IMAGE_NAME_TAG_BASE ${ARCH_SPECIFIC_IMAGES[@]}
 
           echo "pushing manifest"
           docker manifest push $IMAGE_NAME_TAG_BASE
-
+      
+      - name: Push to ECR
+        uses: ./.github/actions/push-to-ecr
+        with:
+          aws-region: ${{ secrets.ECR_AWS_REGION }}
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          ecr-repository-path: s/heroku/shaas/shaas
+          image-tag: ${{ github.sha }} # Equivalent to ${GITHUB_SHA} 
+          source-image-tags: ${{ secrets.ARCHITECTURES }}

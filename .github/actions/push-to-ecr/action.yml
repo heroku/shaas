@@ -1,0 +1,77 @@
+name: 'Push to ECR'
+description: 'Push pre-built Docker images to the Heroku ECR repository'
+
+inputs:
+  aws-region:
+    description: 'AWS region for ECR'
+    required: true
+  role-to-assume:
+    description: 'AWS role ARN to assume'
+    required: true
+  ecr-repository-path:
+    description: 'ECR repository path (e.g., s/heroku/shaas/shaas)'
+    required: true
+  image-tag:
+    description: 'Image tag (e.g., commit SHA)'
+    required: true
+  source-image-tags:
+    description: 'Comma-separated list of local image tags to push (e.g., "amd64,arm64" or "shaas" for single-arch)'
+    required: true
+
+outputs:
+  image-uri:
+    description: 'Full ECR image URI'
+    value: ${{ steps.push.outputs.image-uri }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Login to Heroku ECR
+      id: login-ecr
+      uses: ./.github/actions/login
+      with:
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.role-to-assume }}
+
+    - name: Push to Heroku ECR
+      id: push
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr-repository-path }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        SOURCE_IMAGES: ${{ inputs.source-image-tags }}
+      run: |
+        # Validate inputs to prevent command injection
+        if [[ ! "$ECR_REPOSITORY" =~ ^[a-zA-Z0-9/_-]+$ ]]; then
+          echo "Error: Invalid ECR repository path" >&2
+          exit 1
+        fi
+        if [[ ! "$IMAGE_TAG" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+          echo "Error: Invalid image tag" >&2
+          exit 1
+        fi
+        if [[ ! "$SOURCE_IMAGES" =~ ^[a-zA-Z0-9,._-]+$ ]]; then
+          echo "Error: Invalid source image tags" >&2
+          exit 1
+        fi
+        
+        ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+        IFS=',' read -ra IMAGES <<< "$SOURCE_IMAGES"
+        
+        if [ ${#IMAGES[@]} -eq 1 ]; then
+          docker tag "${IMAGES[0]}" "$ECR_IMAGE"
+          docker push "$ECR_IMAGE"
+        else
+          ARCH_TAGS=()
+          for IMG in "${IMAGES[@]}"; do
+            ARCH_TAG="${ECR_IMAGE}-${IMG}"
+            docker tag "$IMG" "$ARCH_TAG"
+            docker push "$ARCH_TAG"
+            ARCH_TAGS+=("$ARCH_TAG")
+          done
+          docker manifest create "$ECR_IMAGE" "${ARCH_TAGS[@]}"
+          docker manifest push "$ECR_IMAGE"
+        fi
+        
+        echo "image-uri=$ECR_IMAGE" >> $GITHUB_OUTPUT
