@@ -6,4 +6,5 @@ not_exploitable:
       heroku/kubernetes. Exploiting the mutable ref requires write access to
       heroku/kubernetes, which is an internal trust boundary and not an external
       attacker path. Reevaluate if the action moves to a less controlled repo
-      or if this repo starts pinning heroku/kubernetes refs to commit SHAs.
+      or if this repo starts pinning this ref to a commit SHA. The publication actions in the same
+      workflow are already pinned by SHA.
