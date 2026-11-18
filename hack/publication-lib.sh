@@ -23,7 +23,7 @@ digest_or_absent() {
     echo "$out"
     return 0
   fi
-  if grep -qiE 'MANIFEST_UNKNOWN|NAME_UNKNOWN|NOT_FOUND|404|not ?found' "$err"; then
+  if grep -qiE 'MANIFEST_UNKNOWN|NAME_UNKNOWN|status code 404|404 Not Found' "$err"; then
     rm -f "$err"
     return 1
   fi

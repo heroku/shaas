@@ -16,7 +16,7 @@ key() { echo "${1//\//_}"; }
 deny() { [[ -f "$FAKE/deny" ]] && [[ "$1" == "$(cat "$FAKE/deny")"* ]]; }
 case "$1" in
   digest)
-    deny "$2" && { echo "denied: 403 Forbidden" >&2; exit 1; }
+    deny "$2" && { echo "GET https://registry/v2/manifests/${2##*:}: 403 Forbidden" >&2; exit 1; }
     f="$FAKE/tags/$(key "$2")"
     [[ -f "$f" ]] || { echo "MANIFEST_UNKNOWN: not found" >&2; exit 1; }
     cat "$f" ;;
@@ -172,6 +172,14 @@ publish >/dev/null 2>&1
 to_rr >/dev/null 2>&1
 grep -v '^linux/arm64' "$rec" >"$rec.new" && mv "$rec.new" "$rec"
 expect "verify fails when a platform is missing from the index" 1 verify
+
+# A 403 whose message contains "404" (here via the tag) is an error, not "absent".
+reset
+SHA=abc404 publish >/dev/null 2>&1
+echo "$RR" >"$FAKE/deny"
+expect "publish-rr treats a 403 mentioning 404 as an error, not absence" 1 env SHA=abc404 bash -c "$(declare -f to_rr); hack='$hack' rec='$rec' ECR=$ECR RR=$RR; to_rr"
+[[ "$(count "$FAKE/copies")" == 0 ]] || { failed=$((failed + 1)); echo "FAIL copied despite a 403"; }
+rm "$FAKE/deny"
 
 echo "$pass passed, $failed failed"
 [[ $failed -eq 0 ]]
