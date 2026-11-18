@@ -7,13 +7,13 @@ The index, copy and verify steps are shared actions in `heroku/kubernetes` (`act
 ```
 build + push each platform        docker buildx build, ONCE per platform -> ECR <sha>-<arch>   (repo-local)
 publication/create-index          index <sha> in ECR from the platform digests
-publication/copy-to-rr            copy by digest ECR -> RR                                      (RR-only)
+publication/copy-to-rr            copy the index and the <sha>-<arch> images by digest ECR -> RR (RR-only)
 publication/verify                fails closed unless the index and children are correct in ECR and RR
 ```
 
 This repo uploads no manifests or release metadata. If that is ever added, it must run after `verify`.
 
-Platforms come from the `ARCHITECTURES` secret (comma-separated, e.g. `amd64,arm64`). Images are built with `--provenance=false --sbom=false`, so there are no attestation children in the index.
+Platforms come from the `ARCHITECTURES` secret (comma-separated, e.g. `amd64,arm64`); `verify` checks exactly those platforms. RR keeps its `<sha>-<arch>` and `<sha>` tags. `verify` checks the index (and so each child); the per-arch tags are copied but not separately verified. Images are built with `--provenance=false --sbom=false`, so there are no attestation children in the index.
 
 ## Paths
 

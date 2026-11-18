@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           IFS=',' read -ra archs <<<"$ARCHITECTURES"
           [[ ${#archs[@]} -gt 0 && -n "${archs[0]}" ]] || { echo "::error::ARCHITECTURES is empty"; exit 1; }
-          digests=()
+          digests=() images=() platforms=()
           for arch in "${archs[@]}"; do
             [[ "$arch" =~ ^[a-z0-9]+$ ]] || { echo "::error::invalid architecture: $arch"; exit 1; }
             ref="$ECR_REPO:$GITHUB_SHA-$arch"
@@ -47,12 +47,19 @@ jobs:
                 --provenance=false --sbom=false --push --metadata-file "$RUNNER_TEMP/$arch.json" -t "$ref" .
               digest="$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/$arch.json")"
             fi
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no valid digest for $ref: '$digest'"; exit 1; }
             digests+=("$digest")
+            images+=("$ref@$digest")
+            platforms+=("linux/$arch")
           done
           {
             echo "digests<<EOF_DIGESTS"
             printf '%s\n' "${digests[@]}"
             echo "EOF_DIGESTS"
+            echo "images<<EOF_IMAGES"
+            printf '%s\n' "${images[@]}"
+            echo "EOF_IMAGES"
+            echo "platforms=${platforms[*]}"
           } >>"$GITHUB_OUTPUT"
       - name: Create the multi-platform index in ECR
         id: index
@@ -67,7 +74,10 @@ jobs:
         uses: heroku/kubernetes/actions/publication/copy-to-rr@15442822dd4fc43877617367ffdc8ca117d64d69
         timeout-minutes: 10
         with:
-          images: ${{ steps.index.outputs.image }}
+          # The index plus the <sha>-<arch> images, so RR keeps the per-arch tags it had before.
+          images: |
+            ${{ steps.index.outputs.image }}
+            ${{ steps.build.outputs.images }}
           source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
           rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
           runtime-registry: ${{ secrets.RUNTIME_REGISTRY }}
@@ -80,5 +90,6 @@ jobs:
         uses: heroku/kubernetes/actions/publication/verify@15442822dd4fc43877617367ffdc8ca117d64d69
         with:
           images: ${{ steps.index.outputs.image }}
+          platforms: ${{ steps.build.outputs.platforms }}
           source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
           rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
