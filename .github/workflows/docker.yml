@@ -76,6 +76,28 @@ jobs:
             echo "EOF_IMAGES"
             echo "platforms=${platforms[*]}"
           } >>"$GITHUB_OUTPUT"
+      # verify skips its platform check when `platforms` is empty, so fail before anything is
+      # published to RR if the build outputs are missing or inconsistent.
+      - name: Check the build outputs
+        env:
+          PLATFORMS: ${{ steps.build.outputs.platforms }}
+          IMAGES: ${{ steps.build.outputs.images }}
+          DIGESTS: ${{ steps.build.outputs.digests }}
+        run: |
+          set -euo pipefail
+          [[ -n "${PLATFORMS// /}" ]] || { echo "::error::build output 'platforms' is empty"; exit 1; }
+          [[ -n "${IMAGES//[[:space:]]/}" ]] || { echo "::error::build output 'images' is empty"; exit 1; }
+          [[ -n "${DIGESTS//[[:space:]]/}" ]] || { echo "::error::build output 'digests' is empty"; exit 1; }
+          read -ra platforms <<<"$PLATFORMS"
+          mapfile -t images <<<"$IMAGES"
+          mapfile -t digests <<<"$DIGESTS"
+          [[ ${#platforms[@]} -eq ${#images[@]} && ${#platforms[@]} -eq ${#digests[@]} ]] ||
+            { echo "::error::platforms (${#platforms[@]}), images (${#images[@]}) and digests (${#digests[@]}) differ in count"; exit 1; }
+          for i in "${!platforms[@]}"; do
+            arch="${platforms[$i]#linux/}"
+            [[ "${platforms[$i]}" == linux/* && "${images[$i]}" == *":$GITHUB_SHA-$arch@${digests[$i]}" ]] ||
+              { echo "::error::platform ${platforms[$i]} does not match image '${images[$i]}' / digest '${digests[$i]}'"; exit 1; }
+          done
       - name: Create the multi-platform index in ECR
         id: index
         uses: heroku/kubernetes/actions/publication/create-index@15442822dd4fc43877617367ffdc8ca117d64d69
