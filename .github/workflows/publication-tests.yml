@@ -1,0 +1,19 @@
+name: Publication scripts
+on:
+  pull_request:
+    paths:
+      - "hack/**"
+      - ".github/workflows/docker.yml"
+      - ".github/workflows/publication-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x hack/*.sh hack/test/*.sh
+      - name: Test publication scripts
+        run: hack/test/publication_test.sh

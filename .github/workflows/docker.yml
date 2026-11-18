@@ -7,43 +7,52 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC authentication with ECR
+      contents: read
+    env:
+      # Source registry path (see terraform/data/container-images.csv in heroku/runtime-ecr-terraform).
+      ECR_PATH: s/heroku/shaas/shaas
+      CRANE_VERSION: v0.22.1
     steps:
       - uses: actions/checkout@v4
-      - name: build and push image
+      # Build once and push to ECR first. Nothing below rebuilds: RR is copied from the ECR content
+      # by digest (see docs/release-publication.md).
+      - name: Login to ECR
+        id: ecr
+        uses: heroku/kubernetes/actions/ecr/login@master
+        timeout-minutes: 5
+      - name: Install crane
+        run: |
+          GOBIN="${RUNNER_TEMP}/bin" GOFLAGS='' go install "github.com/google/go-containerregistry/cmd/crane@${CRANE_VERSION}"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+      - name: Build platform images and push the index to ECR
+        timeout-minutes: 30
+        env:
+          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          ARCHITECTURES: ${{ secrets.ARCHITECTURES }}
+        run: hack/publish-ecr.sh "$ECR_REPO" "$GITHUB_SHA" "${ARCHITECTURES//,/ }" tmp/publication/record.txt
+      # RR-only: copy identical content (by digest) to RR. Delete this step, the RR login and
+      # RR_REPO when RR is retired.
+      - name: Log into Heroku Runtime Registry
+        run: |
+          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
+          echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
           SERVICETOKEN_ENDPOINT: ${{ secrets.SERVICETOKEN_ENDPOINT }}
           SERVICE_USERNAME: ${{ secrets.SERVICE_USERNAME }}
           SERVICE_PASSWORD: ${{ secrets.SERVICE_PASSWORD }}
-          ARCHITECTURES: ${{ secrets.ARCHITECTURES }}
-        run: |
-          echo "logging into runtime-registry"
-          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
-          echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
-
-          IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GITHUB_SHA}
-
-          IFS=',' read -ra SUPPORTED_ARCHS <<< "$ARCHITECTURES"
-          ARCH_SPECIFIC_IMAGES=()
-
-          for ARCH in ${SUPPORTED_ARCHS[@]}
-          do
-            IMAGE_NAME_TAG_ARCH=$IMAGE_NAME_TAG_BASE-$ARCH
-            PLATFORM=linux/$ARCH
-
-            echo "building architecture-specific image"
-            docker build --tag $ARCH -f Dockerfile . --platform=$PLATFORM --build-arg ARCH=$ARCH
-            docker tag $ARCH $IMAGE_NAME_TAG_ARCH
-
-            echo "pushing architecture-specific image"
-            docker push $IMAGE_NAME_TAG_ARCH
-
-            ARCH_SPECIFIC_IMAGES+=( $IMAGE_NAME_TAG_ARCH )
-          done
-
-          echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
-
-          echo "pushing manifest"
-          docker manifest push $IMAGE_NAME_TAG_BASE
-
+      - name: Publish to Runtime Registry (RR)
+        timeout-minutes: 10
+        env:
+          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          RR_REPO: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
+        run: hack/publish-rr.sh tmp/publication/record.txt "$ECR_REPO" "$RR_REPO"
+      # Fails closed unless both platforms and the index are identical in ECR and RR. Anything that
+      # advertises the release (manifest or release uploads) must come after this step.
+      - name: Verify publication
+        env:
+          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          RR_REPO: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
+        run: hack/verify-publication.sh tmp/publication/record.txt "$ECR_REPO" "$RR_REPO"
