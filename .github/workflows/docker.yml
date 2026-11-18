@@ -36,7 +36,7 @@ jobs:
       # RR_REPO when RR is retired.
       - name: Log into Heroku Runtime Registry
         run: |
-          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
+          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -er ".raw_id_token")
           echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
         env:
           RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
