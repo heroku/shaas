@@ -13,46 +13,72 @@ jobs:
     env:
       # Source registry path (see terraform/data/container-images.csv in heroku/runtime-ecr-terraform).
       ECR_PATH: s/heroku/shaas/shaas
-      CRANE_VERSION: v0.22.1
+      # Publication actions are pinned to 15442822dd4f (heroku/kubernetes#2500, unmerged branch
+      # dh/publication-actions). Re-pin all three to a master SHA once #2498 and #2500 merge.
     steps:
       - uses: actions/checkout@v4
-      # Build once and push to ECR first. Nothing below rebuilds: RR is copied from the ECR content
-      # by digest (see docs/release-publication.md).
+      # Build each platform once and push it to ECR first. Nothing below rebuilds: the index is
+      # made from these digests and RR is copied from ECR by digest (docs/release-publication.md).
       - name: Login to ECR
         id: ecr
         uses: heroku/kubernetes/actions/ecr/login@master
         timeout-minutes: 5
-      - name: Install crane
-        run: |
-          GOBIN="${RUNNER_TEMP}/bin" GOFLAGS='' go install "github.com/google/go-containerregistry/cmd/crane@${CRANE_VERSION}"
-          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
-      - name: Build platform images and push the index to ECR
+      - name: Build platform images and push them to ECR
+        id: build
         timeout-minutes: 30
         env:
           ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
           ARCHITECTURES: ${{ secrets.ARCHITECTURES }}
-        run: hack/publish-ecr.sh "$ECR_REPO" "$GITHUB_SHA" "${ARCHITECTURES//,/ }" tmp/publication/record.txt
-      # RR-only: copy identical content (by digest) to RR. Delete this step, the RR login and
-      # RR_REPO when RR is retired.
-      - name: Log into Heroku Runtime Registry
         run: |
-          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -er ".raw_id_token")
-          echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
-        env:
-          RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
-          SERVICETOKEN_ENDPOINT: ${{ secrets.SERVICETOKEN_ENDPOINT }}
-          SERVICE_USERNAME: ${{ secrets.SERVICE_USERNAME }}
-          SERVICE_PASSWORD: ${{ secrets.SERVICE_PASSWORD }}
-      - name: Publish to Runtime Registry (RR)
+          set -euo pipefail
+          IFS=',' read -ra archs <<<"$ARCHITECTURES"
+          [[ ${#archs[@]} -gt 0 && -n "${archs[0]}" ]] || { echo "::error::ARCHITECTURES is empty"; exit 1; }
+          digests=()
+          for arch in "${archs[@]}"; do
+            [[ "$arch" =~ ^[a-z0-9]+$ ]] || { echo "::error::invalid architecture: $arch"; exit 1; }
+            ref="$ECR_REPO:$GITHUB_SHA-$arch"
+            # ECR tags are immutable: reuse an image a failed earlier run already pushed.
+            if digest="$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}' 2>/dev/null)"; then
+              echo "$ref already present ($digest); reusing, not rebuilding"
+            else
+              # --provenance/--sbom=false: the image has never carried attestations, and an
+              # attestation manifest would add a platform-less child to the index.
+              docker buildx build --platform "linux/$arch" --build-arg "ARCH=$arch" -f Dockerfile \
+                --provenance=false --sbom=false --push --metadata-file "$RUNNER_TEMP/$arch.json" -t "$ref" .
+              digest="$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/$arch.json")"
+            fi
+            digests+=("$digest")
+          done
+          {
+            echo "digests<<EOF_DIGESTS"
+            printf '%s\n' "${digests[@]}"
+            echo "EOF_DIGESTS"
+          } >>"$GITHUB_OUTPUT"
+      - name: Create the multi-platform index in ECR
+        id: index
+        uses: heroku/kubernetes/actions/publication/create-index@15442822dd4fc43877617367ffdc8ca117d64d69
+        with:
+          repository: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          tag: ${{ github.sha }}
+          digests: ${{ steps.build.outputs.digests }}
+      # RR-only: copy identical content (by digest) to RR. Delete this step and the rr-prefix of
+      # the verify step when RR is retired.
+      - name: Copy images to Runtime Registry (RR)
+        uses: heroku/kubernetes/actions/publication/copy-to-rr@15442822dd4fc43877617367ffdc8ca117d64d69
         timeout-minutes: 10
-        env:
-          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
-          RR_REPO: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
-        run: hack/publish-rr.sh tmp/publication/record.txt "$ECR_REPO" "$RR_REPO"
-      # Fails closed unless both platforms and the index are identical in ECR and RR. Anything that
+        with:
+          images: ${{ steps.index.outputs.image }}
+          source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
+          runtime-registry: ${{ secrets.RUNTIME_REGISTRY }}
+          token-service-endpoint: ${{ secrets.SERVICETOKEN_ENDPOINT }}
+          service-username: ${{ secrets.SERVICE_USERNAME }}
+          service-password: ${{ secrets.SERVICE_PASSWORD }}
+      # Fails closed unless the index and every platform are identical in ECR and RR. Anything that
       # advertises the release (manifest or release uploads) must come after this step.
       - name: Verify publication
-        env:
-          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
-          RR_REPO: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
-        run: hack/verify-publication.sh tmp/publication/record.txt "$ECR_REPO" "$RR_REPO"
+        uses: heroku/kubernetes/actions/publication/verify@15442822dd4fc43877617367ffdc8ca117d64d69
+        with:
+          images: ${{ steps.index.outputs.image }}
+          source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
