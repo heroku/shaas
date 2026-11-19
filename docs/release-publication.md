@@ -2,7 +2,7 @@
 
 Every push to `master` runs `.github/workflows/docker.yml`, which publishes the shaas image. It must be pullable from **ECR** (the source registry, `s/heroku/shaas/shaas`) and, until it is retired, the **Runtime Registry (RR)**, with identical content.
 
-The index, copy and verify steps are shared actions in `heroku/kubernetes` (`actions/publication/`; its README says what each checks). The workflow pins them to a commit SHA.
+The index, copy and verify steps are shared actions in `heroku/kubernetes` (`actions/publication/`; its README says what each checks). The workflow references them at `master`.
 
 ```
 build + push each platform        docker buildx build, ONCE per platform -> ECR <sha>-<arch>   (repo-local)

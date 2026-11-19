@@ -18,7 +18,6 @@ jobs:
     env:
       # Source registry path (see terraform/data/container-images.csv in heroku/runtime-ecr-terraform).
       ECR_PATH: s/heroku/shaas/shaas
-      # Publication actions are pinned to e34efce7 (heroku/kubernetes master, merged #2500).
     steps:
       - uses: actions/checkout@v4
       # Build each platform once and push it to ECR first. Nothing below rebuilds: the index is
@@ -99,7 +98,7 @@ jobs:
           done
       - name: Create the multi-platform index in ECR
         id: index
-        uses: heroku/kubernetes/actions/publication/create-index@e34efce78e66d6a31fd21e5cd01c04322a281171
+        uses: heroku/kubernetes/actions/publication/create-index@master
         with:
           repository: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
           tag: ${{ github.sha }}
@@ -107,7 +106,7 @@ jobs:
       # RR-only: copy identical content (by digest) to RR. Delete this step and the rr-prefix of
       # the verify step when RR is retired.
       - name: Copy images to Runtime Registry (RR)
-        uses: heroku/kubernetes/actions/publication/copy-to-rr@e34efce78e66d6a31fd21e5cd01c04322a281171
+        uses: heroku/kubernetes/actions/publication/copy-to-rr@master
         timeout-minutes: 10
         with:
           # The index plus the <sha>-<arch> images, so RR keeps the per-arch tags it had before.
@@ -123,7 +122,7 @@ jobs:
       # Fails closed unless the index and every platform are identical in ECR and RR. Anything that
       # advertises the release (manifest or release uploads) must come after this step.
       - name: Verify publication
-        uses: heroku/kubernetes/actions/publication/verify@e34efce78e66d6a31fd21e5cd01c04322a281171
+        uses: heroku/kubernetes/actions/publication/verify@master
         with:
           images: ${{ steps.index.outputs.image }}
           platforms: ${{ steps.build.outputs.platforms }}
