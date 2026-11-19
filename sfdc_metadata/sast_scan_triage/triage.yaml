@@ -1,0 +1,26 @@
+false_positive: []
+not_exploitable:
+  - id: .github/workflows/docker.yml:f4ccf4c39aca0e4aaea82e696cda35ea38ef328be73cc9cefaecad76858af909
+    justification: >
+      heroku/kubernetes/actions/ecr/login@master is an internal Heroku action hosted in
+      heroku/kubernetes. Exploiting the mutable ref requires write access to
+      heroku/kubernetes, which is an internal trust boundary and not an external
+      attacker path. Reevaluate if the action moves to a less controlled repo.
+  - id: .github/workflows/docker.yml:c17764fb70ab7c2d710fd88e7fe3075c4a36ef9c9a40c29ce1013ee68ab45720
+    justification: >
+      heroku/kubernetes/actions/publication/create-index@master is an internal Heroku action hosted in
+      heroku/kubernetes. Exploiting the mutable ref requires write access to
+      heroku/kubernetes, which is an internal trust boundary and not an external
+      attacker path. Reevaluate if the action moves to a less controlled repo.
+  - id: .github/workflows/docker.yml:e58861da82328d80b15e4fe0d694a67f2f2a3be86ae5c361dbc3a5dbaf4ba4b7
+    justification: >
+      heroku/kubernetes/actions/publication/copy-to-rr@master is an internal Heroku action hosted in
+      heroku/kubernetes. Exploiting the mutable ref requires write access to
+      heroku/kubernetes, which is an internal trust boundary and not an external
+      attacker path. Reevaluate if the action moves to a less controlled repo.
+  - id: .github/workflows/docker.yml:d5367b471caf1b435c0e310f4d1b58865e0f9ac69561944b470e493e5c13a398
+    justification: >
+      heroku/kubernetes/actions/publication/verify@master is an internal Heroku action hosted in
+      heroku/kubernetes. Exploiting the mutable ref requires write access to
+      heroku/kubernetes, which is an internal trust boundary and not an external
+      attacker path. Reevaluate if the action moves to a less controlled repo.

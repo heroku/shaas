@@ -4,46 +4,127 @@ on:
     branches:
       - "master"
 
+# Serialize runs for a commit: they write immutable ECR tags.
+concurrency:
+  group: publish-${{ github.sha }}
+  cancel-in-progress: false
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC authentication with ECR
+      contents: read
+    env:
+      # Source registry path (see terraform/data/container-images.csv in heroku/runtime-ecr-terraform).
+      ECR_PATH: s/heroku/shaas/shaas
     steps:
       - uses: actions/checkout@v4
-      - name: build and push image
+      # Build each platform once and push it to ECR first. Nothing below rebuilds: the index is
+      # made from these digests and RR is copied from ECR by digest (docs/release-publication.md).
+      - name: Login to ECR
+        id: ecr
+        uses: heroku/kubernetes/actions/ecr/login@master
+        timeout-minutes: 5
+      - name: Build platform images and push them to ECR
+        id: build
+        timeout-minutes: 30
         env:
-          RUNTIME_REGISTRY: ${{ secrets.RUNTIME_REGISTRY }}
-          SERVICETOKEN_ENDPOINT: ${{ secrets.SERVICETOKEN_ENDPOINT }}
-          SERVICE_USERNAME: ${{ secrets.SERVICE_USERNAME }}
-          SERVICE_PASSWORD: ${{ secrets.SERVICE_PASSWORD }}
+          ECR_REPO: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
           ARCHITECTURES: ${{ secrets.ARCHITECTURES }}
         run: |
-          echo "logging into runtime-registry"
-          TOKEN=$(curl -f -X POST "${SERVICETOKEN_ENDPOINT}" -d "{\"username\":\"${SERVICE_USERNAME}\",\"password\":\"${SERVICE_PASSWORD}\"}" -s --retry 3 | jq -r ".raw_id_token")
-          echo "${TOKEN}" | docker login "${RUNTIME_REGISTRY}" -u x-runtime-id --password-stdin
-
-          IMAGE_NAME_TAG_BASE=${RUNTIME_REGISTRY}/s/${SERVICE_USERNAME}/shaas:${GITHUB_SHA}
-
-          IFS=',' read -ra SUPPORTED_ARCHS <<< "$ARCHITECTURES"
-          ARCH_SPECIFIC_IMAGES=()
-
-          for ARCH in ${SUPPORTED_ARCHS[@]}
-          do
-            IMAGE_NAME_TAG_ARCH=$IMAGE_NAME_TAG_BASE-$ARCH
-            PLATFORM=linux/$ARCH
-
-            echo "building architecture-specific image"
-            docker build --tag $ARCH -f Dockerfile . --platform=$PLATFORM --build-arg ARCH=$ARCH
-            docker tag $ARCH $IMAGE_NAME_TAG_ARCH
-
-            echo "pushing architecture-specific image"
-            docker push $IMAGE_NAME_TAG_ARCH
-
-            ARCH_SPECIFIC_IMAGES+=( $IMAGE_NAME_TAG_ARCH )
+          set -euo pipefail
+          IFS=',' read -ra raw_archs <<<"${ARCHITECTURES// /}"
+          archs=()
+          for arch in "${raw_archs[@]}"; do
+            [[ -z "$arch" ]] && continue
+            for seen in "${archs[@]}"; do [[ "$seen" != "$arch" ]] || { echo "::error::duplicate architecture: $arch"; exit 1; }; done
+            archs+=("$arch")
           done
-
-          echo "building manifest"
-          docker manifest create $IMAGE_NAME_TAG_BASE $ARCH_SPECIFIC_IMAGES[@]
-
-          echo "pushing manifest"
-          docker manifest push $IMAGE_NAME_TAG_BASE
-
+          [[ ${#archs[@]} -gt 0 ]] || { echo "::error::ARCHITECTURES is empty"; exit 1; }
+          digests=() images=() platforms=()
+          for arch in "${archs[@]}"; do
+            [[ "$arch" =~ ^[a-z0-9]+$ ]] || { echo "::error::invalid architecture: $arch"; exit 1; }
+            ref="$ECR_REPO:$GITHUB_SHA-$arch"
+            # ECR tags are immutable: reuse an image a failed earlier run already pushed.
+            if digest="$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}' 2>"$RUNNER_TEMP/inspect.err")"; then
+              echo "$ref already present ($digest); reusing, not rebuilding"
+            elif grep -qiE 'not found|MANIFEST_UNKNOWN|NAME_UNKNOWN|404' "$RUNNER_TEMP/inspect.err"; then
+              # --provenance/--sbom=false: the image has never carried attestations, and an
+              # attestation manifest would add a platform-less child to the index.
+              docker buildx build --platform "linux/$arch" --build-arg "ARCH=$arch" -f Dockerfile \
+                --provenance=false --sbom=false --push --metadata-file "$RUNNER_TEMP/$arch.json" -t "$ref" .
+              digest="$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/$arch.json")"
+            else
+              cat "$RUNNER_TEMP/inspect.err" >&2
+              echo "::error::cannot read $ref (not a not-found error); not rebuilding"
+              exit 1
+            fi
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no valid digest for $ref: '$digest'"; exit 1; }
+            digests+=("$digest")
+            images+=("$ref@$digest")
+            platforms+=("linux/$arch")
+          done
+          {
+            echo "digests<<EOF_DIGESTS"
+            printf '%s\n' "${digests[@]}"
+            echo "EOF_DIGESTS"
+            echo "images<<EOF_IMAGES"
+            printf '%s\n' "${images[@]}"
+            echo "EOF_IMAGES"
+            echo "platforms=${platforms[*]}"
+          } >>"$GITHUB_OUTPUT"
+      # verify skips its platform check when `platforms` is empty, so fail before anything is
+      # published to RR if the build outputs are missing or inconsistent.
+      - name: Check the build outputs
+        env:
+          PLATFORMS: ${{ steps.build.outputs.platforms }}
+          IMAGES: ${{ steps.build.outputs.images }}
+          DIGESTS: ${{ steps.build.outputs.digests }}
+        run: |
+          set -euo pipefail
+          [[ -n "${PLATFORMS// /}" ]] || { echo "::error::build output 'platforms' is empty"; exit 1; }
+          [[ -n "${IMAGES//[[:space:]]/}" ]] || { echo "::error::build output 'images' is empty"; exit 1; }
+          [[ -n "${DIGESTS//[[:space:]]/}" ]] || { echo "::error::build output 'digests' is empty"; exit 1; }
+          read -ra platforms <<<"$PLATFORMS"
+          mapfile -t images <<<"$IMAGES"
+          mapfile -t digests <<<"$DIGESTS"
+          [[ ${#platforms[@]} -eq ${#images[@]} && ${#platforms[@]} -eq ${#digests[@]} ]] ||
+            { echo "::error::platforms (${#platforms[@]}), images (${#images[@]}) and digests (${#digests[@]}) differ in count"; exit 1; }
+          for i in "${!platforms[@]}"; do
+            arch="${platforms[$i]#linux/}"
+            [[ "${platforms[$i]}" == linux/* && "${images[$i]}" == *":$GITHUB_SHA-$arch@${digests[$i]}" ]] ||
+              { echo "::error::platform ${platforms[$i]} does not match image '${images[$i]}' / digest '${digests[$i]}'"; exit 1; }
+          done
+      - name: Create the multi-platform index in ECR
+        id: index
+        uses: heroku/kubernetes/actions/publication/create-index@master
+        with:
+          repository: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          tag: ${{ github.sha }}
+          digests: ${{ steps.build.outputs.digests }}
+      # RR-only: copy identical content (by digest) to RR. Delete this step and the rr-prefix of
+      # the verify step when RR is retired.
+      - name: Copy images to Runtime Registry (RR)
+        uses: heroku/kubernetes/actions/publication/copy-to-rr@master
+        timeout-minutes: 10
+        with:
+          # The index plus the <sha>-<arch> images, so RR keeps the per-arch tags it had before.
+          images: |
+            ${{ steps.index.outputs.image }}
+            ${{ steps.build.outputs.images }}
+          source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
+          runtime-registry: ${{ secrets.RUNTIME_REGISTRY }}
+          token-service-endpoint: ${{ secrets.SERVICETOKEN_ENDPOINT }}
+          service-username: ${{ secrets.SERVICE_USERNAME }}
+          service-password: ${{ secrets.SERVICE_PASSWORD }}
+      # Fails closed unless the index and every platform are identical in ECR and RR. Anything that
+      # advertises the release (manifest or release uploads) must come after this step.
+      - name: Verify publication
+        uses: heroku/kubernetes/actions/publication/verify@master
+        with:
+          images: ${{ steps.index.outputs.image }}
+          platforms: ${{ steps.build.outputs.platforms }}
+          source-prefix: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PATH }}
+          rr-prefix: ${{ secrets.RUNTIME_REGISTRY }}/s/${{ secrets.SERVICE_USERNAME }}/shaas
